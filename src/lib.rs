@@ -27,8 +27,13 @@ impl Pubkey {
         bitcoin::XOnlyPublicKey::from_slice(&self.0[1..]).expect("The inner is 33 bytes")
     }
 
-    pub fn to_public_key(&self) -> bitcoin::PublicKey {
-        bitcoin::PublicKey::from_slice(&self.0).expect("The inner is 33 bytes")
+    pub fn to_public_key(&self) -> Result<bitcoin::PublicKey, String> {
+        match self.0[0] {
+            0x02 | 0x03 => {
+                Ok(bitcoin::PublicKey::from_slice(&self.0).expect("The inner is 33 bytes"))
+            }
+            _ => Err("the pubkey is deserialized from a XOnlyPublicKey".to_string()),
+        }
     }
 }
 
@@ -62,7 +67,17 @@ impl Storable for Pubkey {
 
 impl std::fmt::Display for Pubkey {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", hex::encode(&self.0))
+        match self.0[0] {
+            0x02 | 0x03 => {
+                let key = bitcoin::PublicKey::from_slice(&self.0).expect("The inner is 33 bytes");
+                write!(f, "{}", key)
+            }
+            _ => {
+                let key = bitcoin::XOnlyPublicKey::from_slice(&self.0[1..])
+                    .expect("The inner is 33 bytes");
+                write!(f, "{}", key)
+            }
+        }
     }
 }
 
@@ -71,9 +86,13 @@ impl FromStr for Pubkey {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.trim_start_matches("0x");
-        hex::decode(s)
-            .map_err(|_| "invalid pubkey".to_string())
-            .and_then(|key| Self::from_raw(key))
+        let raw = hex::decode(s).map_err(|_| "invalid pubkey".to_string())?;
+        if raw.len() == 32 {
+            let v = [&[0x00], &raw[..]].concat();
+            Self::from_raw(v)
+        } else {
+            Self::from_raw(raw)
+        }
     }
 }
 
@@ -83,7 +102,7 @@ impl<'de> serde::de::Visitor<'de> for PubkeyVisitor {
     type Value = Pubkey;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(formatter, "a 33 or 32-bytes pubkey")
+        write!(formatter, "a 33-bytes pubkey")
     }
 
     fn visit_str<E>(self, value: &str) -> Result<Pubkey, E>
