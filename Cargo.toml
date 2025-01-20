@@ -1,0 +1,16 @@
+[package]
+name = "ree-types"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+candid = "0.10"
+ic-cdk = "0.17"
+anyhow =  "1"
+thiserror = "1"
+generic-array = "0.14"
+ic-stable-structures = "0.6"
+serde = { version = "1.0", features = ["derive"] }
+hex = "0.4"
+bitcoin = { version = "0.32.4", default-features = false, features = ["base64", "serde"] }
+ciborium = "0.2.1"
