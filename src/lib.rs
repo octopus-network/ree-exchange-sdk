@@ -8,20 +8,6 @@ use ic_stable_structures::{storable::Bound, Storable};
 use serde::Serialize;
 use std::str::FromStr;
 
-#[derive(Eq, PartialEq, Clone, CandidType, Debug, Deserialize, Serialize)]
-pub struct Output {
-    pub balance: CoinBalance,
-    pub pubkey: Pubkey,
-}
-
-#[derive(Eq, CandidType, PartialEq, Clone, Debug, Deserialize, Serialize)]
-pub struct Utxo {
-    pub txid: Txid,
-    pub vout: u32,
-    pub balance: CoinBalance,
-    pub satoshis: u64,
-}
-
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug)]
 pub struct Pubkey(Vec<u8>);
 
@@ -383,4 +369,56 @@ impl<'de> serde::Deserialize<'de> for CoinId {
 pub struct CoinBalance {
     pub id: CoinId,
     pub value: u128,
+}
+
+#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct InputRune {
+    pub tx_id: Txid,
+    pub vout: u32,
+    pub btc_amount: u64,
+    pub coin_balance: Option<CoinBalance>,
+}
+
+#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct OutputRune {
+    pub btc_amount: u64,
+    pub coin_balance: Option<CoinBalance>,
+}
+
+#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct AssetWithOwner {
+    pub coin_balance: CoinBalance,
+    pub owner_address: String,
+}
+
+#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct ReeInstruction {
+    pub exchange_id: String,
+    pub method: String,
+    pub pool_key: Option<Pubkey>,
+    pub nonce: Option<u64>,
+    pub input_coins: Vec<AssetWithOwner>,
+    pub output_coins: Vec<AssetWithOwner>,
+}
+
+#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct SignPsbtArgs {
+    pub psbt_hex: String,
+    pub tx_id: Txid,
+    pub instruction: ReeInstruction,
+    pub input_runes: Vec<InputRune>,
+    pub output_runes: Vec<OutputRune>,
+    pub zero_confirmed_tx_count_in_queue: u32,
+}
+
+#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct FinalizeTxArgs {
+    pub pool_key: Pubkey,
+    pub tx_id: Txid,
+}
+
+#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct RollbackTxArgs {
+    pub pool_key: Pubkey,
+    pub tx_id: Txid,
 }

@@ -2,6 +2,10 @@
 name = "ree-types"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+homepage = "https://www.omnity.network/"
+repository = "https://github.com/octopus-network/ree-types"
+description = "Data type definitions of REE."
 
 [dependencies]
 candid = "0.10"
