@@ -1,0 +1,108 @@
+use alloc::str::FromStr;
+use candid::{
+    types::{Serializer, Type, TypeInner},
+    CandidType,
+};
+
+#[derive(Eq, PartialEq, Clone, Copy, Debug)]
+pub struct Txid([u8; 32]);
+
+impl CandidType for Txid {
+    fn _ty() -> Type {
+        TypeInner::Text.into()
+    }
+
+    fn idl_serialize<S>(&self, serializer: S) -> Result<(), S::Error>
+    where
+        S: Serializer,
+    {
+        let rev = self.0.iter().rev().copied().collect::<Vec<_>>();
+        serializer.serialize_text(&hex::encode(&rev))
+    }
+}
+
+impl FromStr for Txid {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let bytes = bitcoin::Txid::from_str(s).map_err(|_| "Invalid txid".to_string())?;
+        Ok(Self(*AsRef::<[u8; 32]>::as_ref(&bytes)))
+    }
+}
+
+impl Into<bitcoin::Txid> for Txid {
+    fn into(self) -> bitcoin::Txid {
+        use bitcoin::hashes::Hash;
+        bitcoin::Txid::from_byte_array(self.0)
+    }
+}
+
+impl From<bitcoin::Txid> for Txid {
+    fn from(txid: bitcoin::Txid) -> Self {
+        Self(*AsRef::<[u8; 32]>::as_ref(&txid))
+    }
+}
+
+impl AsRef<[u8; 32]> for Txid {
+    fn as_ref(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
+impl AsRef<[u8]> for Txid {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl core::fmt::Display for Txid {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        let rev = self.0.iter().rev().copied().collect::<Vec<_>>();
+        write!(f, "{}", hex::encode(&rev))
+    }
+}
+
+struct TxidVisitor;
+
+impl<'de> serde::de::Visitor<'de> for TxidVisitor {
+    type Value = Txid;
+
+    fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(formatter, "a Bitcoin Txid")
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Txid, E>
+    where
+        E: serde::de::Error,
+    {
+        Txid::from_str(value)
+            .map_err(|_| E::invalid_value(serde::de::Unexpected::Str(value), &self))
+    }
+
+    fn visit_bytes<E>(self, v: &[u8]) -> Result<Txid, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(Txid(v.try_into().map_err(|_| {
+            E::invalid_value(serde::de::Unexpected::Bytes(v), &"a Bitcoin Txid")
+        })?))
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Txid {
+    fn deserialize<D>(deserializer: D) -> Result<Txid, D::Error>
+    where
+        D: serde::de::Deserializer<'de>,
+    {
+        deserializer.deserialize_any(TxidVisitor)
+    }
+}
+
+impl serde::Serialize for Txid {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
