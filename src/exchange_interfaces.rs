@@ -44,7 +44,8 @@ pub struct ReeInstruction {
 pub struct SignPsbtArgs {
     pub psbt_hex: String,
     pub tx_id: Txid,
-    pub instruction: ReeInstruction,
+    pub all_instructions: Vec<ReeInstruction>,
+    pub instruction_index: u32,
     pub input_runes: Vec<InputRune>,
     pub output_runes: Vec<OutputRune>,
     pub zero_confirmed_tx_count_in_queue: u32,
