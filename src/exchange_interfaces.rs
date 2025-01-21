@@ -34,7 +34,7 @@ pub struct AssetWithOwner {
 pub struct ReeInstruction {
     pub exchange_id: String,
     pub method: String,
-    pub pool_id: Option<String>,
+    pub pool_key: Option<Pubkey>,
     pub nonce: Option<u64>,
     pub input_coins: Vec<AssetWithOwner>,
     pub output_coins: Vec<AssetWithOwner>,
