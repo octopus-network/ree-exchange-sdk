@@ -2,9 +2,9 @@ use alloc::collections::BTreeSet;
 use candid::CandidType;
 use serde::{Deserialize, Serialize};
 
-use crate::{txid::Txid, CoinId};
+use crate::{txid::Txid, CoinId, Pubkey};
 
-#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(CandidType, Copy, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct CoinBalance {
     pub id: CoinId,
     pub value: u128,
@@ -52,13 +52,13 @@ pub struct SignPsbtArgs {
 
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct FinalizeTxArgs {
-    pub pool_id: String,
+    pub pool_key: Pubkey,
     pub tx_id: Txid,
 }
 
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct RollbackTxArgs {
-    pub pool_id: String,
+    pub pool_key: Pubkey,
     pub tx_id: Txid,
 }
 
