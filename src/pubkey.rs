@@ -116,7 +116,7 @@ impl<'de> serde::Deserialize<'de> for Pubkey {
     where
         D: serde::de::Deserializer<'de>,
     {
-        deserializer.deserialize_any(PubkeyVisitor)
+        deserializer.deserialize_str(PubkeyVisitor)
     }
 }
 
@@ -126,5 +126,24 @@ impl serde::Serialize for Pubkey {
         S: serde::ser::Serializer,
     {
         serializer.serialize_str(&self.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_bincode_serde() {
+        let pubkey_hex = "007c06bc45a24f098e327b1e27ed5a9b4477b58c3bbfed5a3bb36c6f59bda290b2";
+        let pubkey_bytes = hex::decode(pubkey_hex).unwrap();
+        let pubkey = Pubkey(pubkey_bytes);
+        let encoded_hex = hex::encode(bincode::serialize(&pubkey).unwrap());
+        assert_eq!(
+            pubkey.0,
+            bincode::deserialize::<Pubkey>(&hex::decode(encoded_hex).unwrap())
+                .unwrap()
+                .0
+        );
     }
 }

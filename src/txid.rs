@@ -78,15 +78,6 @@ impl<'de> serde::de::Visitor<'de> for TxidVisitor {
         Txid::from_str(value)
             .map_err(|_| E::invalid_value(serde::de::Unexpected::Str(value), &self))
     }
-
-    fn visit_bytes<E>(self, v: &[u8]) -> Result<Txid, E>
-    where
-        E: serde::de::Error,
-    {
-        Ok(Txid(v.try_into().map_err(|_| {
-            E::invalid_value(serde::de::Unexpected::Bytes(v), &"a Bitcoin Txid")
-        })?))
-    }
 }
 
 impl<'de> serde::Deserialize<'de> for Txid {
@@ -94,7 +85,7 @@ impl<'de> serde::Deserialize<'de> for Txid {
     where
         D: serde::de::Deserializer<'de>,
     {
-        deserializer.deserialize_any(TxidVisitor)
+        deserializer.deserialize_str(TxidVisitor)
     }
 }
 
@@ -104,5 +95,40 @@ impl serde::Serialize for Txid {
         S: serde::ser::Serializer,
     {
         serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl Txid {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
+        Ok(Txid(bytes.try_into().map_err(|e| {
+            format!("Invalid bytes for a Bitcoin Txid: {:?}", e)
+        })?))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_bincode_serde() {
+        let txid_hex = "51230fe70deae44a92f8f44a600585e3e57b8c8720a0b67c4c422f579d9ace2a";
+        let txid_bytes = hex::decode(txid_hex).unwrap();
+        let txid = Txid(txid_bytes.try_into().unwrap());
+        let encoded_hex = hex::encode(bincode::serialize(&txid).unwrap());
+        assert_eq!(
+            txid.0,
+            bincode::deserialize::<Txid>(&hex::decode(encoded_hex).unwrap())
+                .unwrap()
+                .0
+        );
+    }
+
+    #[test]
+    fn test_bytes_serde() {
+        let txid_hex = "51230fe70deae44a92f8f44a600585e3e57b8c8720a0b67c4c422f579d9ace2a";
+        let txid_bytes = hex::decode(txid_hex).unwrap();
+        let txid = Txid::from_bytes(&txid_bytes).unwrap();
+        assert_eq!(txid.0, Txid(txid_bytes.try_into().unwrap()).0);
     }
 }
