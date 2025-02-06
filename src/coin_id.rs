@@ -66,6 +66,15 @@ impl CoinId {
         bytes.extend_from_slice(self.tx.to_be_bytes().as_ref());
         bytes
     }
+
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        let block: [u8; 8] = bytes[0..8].try_into().expect("failed to decode CoinId");
+        let tx: [u8; 4] = bytes[8..12].try_into().expect("failed to decode CoinId");
+        Self {
+            block: u64::from_be_bytes(block),
+            tx: u32::from_be_bytes(tx),
+        }
+    }
 }
 
 impl FromStr for CoinId {
@@ -131,18 +140,6 @@ impl<'de> serde::de::Visitor<'de> for CoinIdVisitor {
         CoinId::from_str(value)
             .map_err(|_| E::invalid_value(serde::de::Unexpected::Str(value), &self))
     }
-
-    fn visit_bytes<E>(self, v: &[u8]) -> Result<CoinId, E>
-    where
-        E: serde::de::Error,
-    {
-        let block: [u8; 8] = v[0..8].try_into().expect("failed to decode CoinId");
-        let tx: [u8; 4] = v[8..12].try_into().expect("failed to decode CoinId");
-        Ok(CoinId {
-            block: u64::from_be_bytes(block),
-            tx: u32::from_be_bytes(tx),
-        })
-    }
 }
 
 impl<'de> serde::Deserialize<'de> for CoinId {
@@ -150,6 +147,27 @@ impl<'de> serde::Deserialize<'de> for CoinId {
     where
         D: serde::de::Deserializer<'de>,
     {
-        deserializer.deserialize_any(CoinIdVisitor)
+        deserializer.deserialize_str(CoinIdVisitor)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_bincode_serde() {
+        let coin_id = CoinId::rune(840000, 846);
+        let encoded = hex::encode(bincode::serialize(&coin_id).unwrap());
+        let decoded = bincode::deserialize::<CoinId>(&hex::decode(encoded).unwrap()).unwrap();
+        assert_eq!(coin_id, decoded);
+    }
+
+    #[test]
+    fn test_bytes_serde() {
+        let coin_id = CoinId::rune(840000, 846);
+        let bytes = coin_id.to_bytes();
+        let decoded = CoinId::from_bytes(&bytes);
+        assert_eq!(coin_id, decoded);
     }
 }
