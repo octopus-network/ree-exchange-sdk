@@ -11,10 +11,10 @@ pub struct CoinBalance {
 }
 
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct InputCoins {
+pub struct InputCoin {
     // The address of the owner of the coins
     pub from: String,
-    pub coins: Vec<CoinBalance>,
+    pub coin: CoinBalance,
 }
 
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -30,10 +30,16 @@ pub struct ReeInstruction {
     pub method: String,
     pub pool_address: String,
     pub nonce: u64,
-    pub pool_utxo_spend: Option<String>,
-    pub pool_utxo_receive: Option<String>,
-    pub input_coins: Option<InputCoins>,
+    pub pool_utxo_spend: Vec<String>,
+    pub pool_utxo_receive: Vec<String>,
+    pub input_coins: Vec<InputCoin>,
     pub output_coins: Option<OutputCoins>,
+}
+
+#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct ReeInstructionSet {
+    pub initiator_address: String,
+    pub instructions: Vec<ReeInstruction>,
 }
 
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -61,15 +67,9 @@ impl ReeInstruction {
     //
     pub fn input_coin_ids(&self) -> Vec<CoinId> {
         self.input_coins
-            .as_ref()
-            .map(|input_coins| {
-                input_coins
-                    .coins
-                    .iter()
-                    .map(|coin| coin.id.clone())
-                    .collect()
-            })
-            .unwrap_or_default()
+            .iter()
+            .map(|input_coin| input_coin.coin.id.clone())
+            .collect()
     }
     //
     pub fn output_coin_ids(&self) -> Vec<CoinId> {
@@ -105,100 +105,120 @@ mod tests {
 
     #[test]
     fn test_ree_instruction_json() {
-        let instruction_1 = ReeInstruction {
-            exchange_id: "RICH_SWAP".to_string(),
-            method: "add_liquidity".to_string(),
-            pool_address: "bc1pxtmh763568jd8pz9m8wekt2yrqyntqv2wk465mgpzlr9f2aq2vqs52l0hq"
-                .to_string(),
-            nonce: 1,
-            pool_utxo_spend: None,
-            pool_utxo_receive: Some(
-                "4b004c33c5b7bce9a8f5a3a0dab48dd47e33486a8cea5f63ef558849f5604b88:1".to_string(),
-            ),
-            input_coins: Some(InputCoins {
-                from: "bc1q8anrrgczju8zn02ww06slsfh9grm07de7r9e3k".to_string(),
-                coins: vec![
-                    CoinBalance {
-                        id: CoinId::btc(),
-                        value: 23_000,
+        let instruction_set_1 = ReeInstructionSet {
+            initiator_address: "bc1q8anrrgczju8zn02ww06slsfh9grm07de7r9e3k".to_string(),
+            instructions: vec![ReeInstruction {
+                exchange_id: "RICH_SWAP".to_string(),
+                method: "add_liquidity".to_string(),
+                pool_address: "bc1pxtmh763568jd8pz9m8wekt2yrqyntqv2wk465mgpzlr9f2aq2vqs52l0hq"
+                    .to_string(),
+                nonce: 1,
+                pool_utxo_spend: vec![],
+                pool_utxo_receive: vec![
+                    "4b004c33c5b7bce9a8f5a3a0dab48dd47e33486a8cea5f63ef558849f5604b88:1"
+                        .to_string(),
+                ],
+                input_coins: vec![
+                    InputCoin {
+                        from: "bc1q8anrrgczju8zn02ww06slsfh9grm07de7r9e3k".to_string(),
+                        coin: CoinBalance {
+                            id: CoinId::btc(),
+                            value: 23_000,
+                        },
                     },
-                    CoinBalance {
-                        id: CoinId::from_str("868703:142").unwrap(),
-                        value: 959_000_000,
+                    InputCoin {
+                        from: "bc1q8anrrgczju8zn02ww06slsfh9grm07de7r9e3k".to_string(),
+                        coin: CoinBalance {
+                            id: CoinId::from_str("868703:142").unwrap(),
+                            value: 959_000_000,
+                        },
                     },
                 ],
-            }),
-            output_coins: None,
+                output_coins: None,
+            }],
         };
         println!(
             "Add liquidity sample instruction: {}",
-            serde_json::to_string(&instruction_1).unwrap()
+            serde_json::to_string(&instruction_set_1).unwrap()
         );
         //
         //
         //
-        let instruction_2 = ReeInstruction {
-            exchange_id: "RICH_SWAP".to_string(),
-            method: "withdraw_liquidity".to_string(),
-            pool_address: "bc1pu3pv54uxfps00a8ydle67fd3rktz090l07lyg7wadurq4h0lpjhqnet990"
-                .to_string(),
-            nonce: 11,
-            pool_utxo_spend: Some(
-                "71c9aa9a015e0fcd5cbd6354fbd61c290f9c0a77cecb920df1f0917e7ddc75b7:0".to_string(),
-            ),
-            pool_utxo_receive: None,
-            input_coins: None,
-            output_coins: Some(OutputCoins {
-                to: "bc1qvwvcttn5dtxleu73uuyh8w759gukjr22l7z503".to_string(),
-                coins: vec![
-                    CoinBalance {
-                        id: CoinId::btc(),
-                        value: 10_124,
-                    },
-                    CoinBalance {
-                        id: CoinId::from_str("840106:129").unwrap(),
-                        value: 7_072_563,
-                    },
+        let instruction_set_2 = ReeInstructionSet {
+            initiator_address: "bc1qvwvcttn5dtxleu73uuyh8w759gukjr22l7z503".to_string(),
+            instructions: vec![ReeInstruction {
+                exchange_id: "RICH_SWAP".to_string(),
+                method: "withdraw_liquidity".to_string(),
+                pool_address: "bc1pu3pv54uxfps00a8ydle67fd3rktz090l07lyg7wadurq4h0lpjhqnet990"
+                    .to_string(),
+                nonce: 11,
+                pool_utxo_spend: vec![
+                    "71c9aa9a015e0fcd5cbd6354fbd61c290f9c0a77cecb920df1f0917e7ddc75b7:0"
+                        .to_string(),
                 ],
-            }),
+                pool_utxo_receive: vec![],
+                input_coins: vec![],
+                output_coins: Some(OutputCoins {
+                    to: "bc1qvwvcttn5dtxleu73uuyh8w759gukjr22l7z503".to_string(),
+                    coins: vec![
+                        CoinBalance {
+                            id: CoinId::btc(),
+                            value: 10_124,
+                        },
+                        CoinBalance {
+                            id: CoinId::from_str("840106:129").unwrap(),
+                            value: 7_072_563,
+                        },
+                    ],
+                }),
+            }],
         };
         println!(
             "Withdraw liquidity sample instruction: {}",
-            serde_json::to_string(&instruction_2).unwrap()
+            serde_json::to_string(&instruction_set_2).unwrap()
         );
         //
         //
         //
-        let instruction_3 = ReeInstruction {
-            exchange_id: "RICH_SWAP".to_string(),
-            method: "swap".to_string(),
-            pool_address: "bc1ptnxf8aal3apeg8r4zysr6k2mhadg833se2dm4nssl7drjlqdh2jqa4tk3p"
+        let instruction_set_3 = ReeInstructionSet {
+            initiator_address: "bc1plvgrpk6mxwyppvqa5j275ujatn8qgs2dcm8m3r2w7sfkn395x6us9l5qdj"
                 .to_string(),
-            nonce: 5,
-            pool_utxo_spend: Some(
-                "17616a9d2258c41bea2175e64ecc2e5fc45ae18be5c9003e058cb0bb85301fd8:0".to_string(),
-            ),
-            pool_utxo_receive: Some(
-                "0cec5e1ac7688744dc7af59e8e3cd7be794b0f6dfec9357181759dc4c9c9e541:0".to_string(),
-            ),
-            input_coins: Some(InputCoins {
-                from: "bc1plvgrpk6mxwyppvqa5j275ujatn8qgs2dcm8m3r2w7sfkn395x6us9l5qdj".to_string(),
-                coins: vec![CoinBalance {
-                    id: CoinId::from_str("840000:846").unwrap(),
-                    value: 10_000_000,
+
+            instructions: vec![ReeInstruction {
+                exchange_id: "RICH_SWAP".to_string(),
+                method: "swap".to_string(),
+                pool_address: "bc1ptnxf8aal3apeg8r4zysr6k2mhadg833se2dm4nssl7drjlqdh2jqa4tk3p"
+                    .to_string(),
+                nonce: 5,
+                pool_utxo_spend: vec![
+                    "17616a9d2258c41bea2175e64ecc2e5fc45ae18be5c9003e058cb0bb85301fd8:0"
+                        .to_string(),
+                ],
+                pool_utxo_receive: vec![
+                    "0cec5e1ac7688744dc7af59e8e3cd7be794b0f6dfec9357181759dc4c9c9e541:0"
+                        .to_string(),
+                ],
+                input_coins: vec![InputCoin {
+                    from: "bc1plvgrpk6mxwyppvqa5j275ujatn8qgs2dcm8m3r2w7sfkn395x6us9l5qdj"
+                        .to_string(),
+                    coin: CoinBalance {
+                        id: CoinId::from_str("840000:846").unwrap(),
+                        value: 10_000_000,
+                    },
                 }],
-            }),
-            output_coins: Some(OutputCoins {
-                to: "bc1plvgrpk6mxwyppvqa5j275ujatn8qgs2dcm8m3r2w7sfkn395x6us9l5qdj".to_string(),
-                coins: vec![CoinBalance {
-                    id: CoinId::btc(),
-                    value: 25_523,
-                }],
-            }),
+                output_coins: Some(OutputCoins {
+                    to: "bc1plvgrpk6mxwyppvqa5j275ujatn8qgs2dcm8m3r2w7sfkn395x6us9l5qdj"
+                        .to_string(),
+                    coins: vec![CoinBalance {
+                        id: CoinId::btc(),
+                        value: 25_523,
+                    }],
+                }),
+            }],
         };
         println!(
             "Swap sample instruction: {}",
-            serde_json::to_string(&instruction_3).unwrap()
+            serde_json::to_string(&instruction_set_3).unwrap()
         );
     }
 }
