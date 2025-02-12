@@ -11,19 +11,22 @@
             ],
             "pool_utxo_receive": [],
             "input_coins": [],
-            "output_coins": {
-                "to": "bc1qvwvcttn5dtxleu73uuyh8w759gukjr22l7z503",
-                "coins": [
-                    {
+            "output_coins": [
+                {
+                    "to": "bc1qvwvcttn5dtxleu73uuyh8w759gukjr22l7z503",
+                    "coin": {
                         "id": "0:0",
                         "value": 10124
-                    },
-                    {
+                    }
+                },
+                {
+                    "to": "bc1qvwvcttn5dtxleu73uuyh8w759gukjr22l7z503",
+                    "coin": {
                         "id": "840106:129",
                         "value": 7072563
                     }
-                ]
-            }
+                }
+            ]
         }
     ]
 }
