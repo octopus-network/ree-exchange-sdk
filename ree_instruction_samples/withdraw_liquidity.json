@@ -1,0 +1,22 @@
+{
+    "exchange_id": "RICH_SWAP",
+    "method": "withdraw_liquidity",
+    "pool_address": "bc1pu3pv54uxfps00a8ydle67fd3rktz090l07lyg7wadurq4h0lpjhqnet990",
+    "nonce": 11,
+    "pool_utxo_spend": "71c9aa9a015e0fcd5cbd6354fbd61c290f9c0a77cecb920df1f0917e7ddc75b7:0",
+    "pool_utxo_receive": null,
+    "input_coins": null,
+    "output_coins": {
+        "to": "bc1qvwvcttn5dtxleu73uuyh8w759gukjr22l7z503",
+        "coins": [
+            {
+                "id": "0:0",
+                "value": 10124
+            },
+            {
+                "id": "840106:129",
+                "value": 7072563
+            }
+        ]
+    }
+}

@@ -5,5 +5,5 @@ use serde::{Deserialize, Serialize};
 pub struct NewBlockDetectedArgs {
     pub block_height: u32,
     pub block_hash: String,
-    pub tx_ids: Vec<String>,
+    pub txids: Vec<String>,
 }
