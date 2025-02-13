@@ -1,9 +1,9 @@
 {
     "initiator_address": "bc1plvgrpk6mxwyppvqa5j275ujatn8qgs2dcm8m3r2w7sfkn395x6us9l5qdj",
-    "instructions": [
+    "intentions": [
         {
             "exchange_id": "RICH_SWAP",
-            "method": "swap",
+            "action": "swap",
             "pool_address": "bc1ptnxf8aal3apeg8r4zysr6k2mhadg833se2dm4nssl7drjlqdh2jqa4tk3p",
             "nonce": 5,
             "pool_utxo_spend": [
@@ -33,7 +33,7 @@
         },
         {
             "exchange_id": "RICH_SWAP",
-            "method": "swap",
+            "action": "swap",
             "pool_address": "bc1pu3pv54uxfps00a8ydle67fd3rktz090l07lyg7wadurq4h0lpjhqnet990",
             "nonce": 9,
             "pool_utxo_spend": [

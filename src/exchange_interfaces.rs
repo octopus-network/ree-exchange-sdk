@@ -25,9 +25,9 @@ pub struct OutputCoin {
 }
 
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct ReeInstruction {
+pub struct Intention {
     pub exchange_id: String,
-    pub method: String,
+    pub action: String,
     pub pool_address: String,
     pub nonce: u64,
     pub pool_utxo_spend: Vec<String>,
@@ -37,17 +37,17 @@ pub struct ReeInstruction {
 }
 
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct ReeInstructionSet {
+pub struct IntentionSet {
     pub initiator_address: String,
-    pub instructions: Vec<ReeInstruction>,
+    pub intentions: Vec<Intention>,
 }
 
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct SignPsbtArgs {
     pub psbt_hex: String,
     pub txid: Txid,
-    pub all_instructions: Vec<ReeInstruction>,
-    pub instruction_index: u32,
+    pub intention_set: IntentionSet,
+    pub intention_index: u32,
     pub zero_confirmed_tx_count_in_queue: u32,
 }
 
@@ -63,7 +63,7 @@ pub struct RollbackTxArgs {
     pub txid: Txid,
 }
 
-impl ReeInstruction {
+impl Intention {
     //
     pub fn input_coin_ids(&self) -> Vec<CoinId> {
         self.input_coins
@@ -99,11 +99,11 @@ mod tests {
 
     #[test]
     fn test_ree_instruction_json() {
-        let instruction_set_1 = ReeInstructionSet {
+        let instruction_set_1 = IntentionSet {
             initiator_address: "bc1q8anrrgczju8zn02ww06slsfh9grm07de7r9e3k".to_string(),
-            instructions: vec![ReeInstruction {
+            intentions: vec![Intention {
                 exchange_id: "RICH_SWAP".to_string(),
-                method: "add_liquidity".to_string(),
+                action: "add_liquidity".to_string(),
                 pool_address: "bc1pxtmh763568jd8pz9m8wekt2yrqyntqv2wk465mgpzlr9f2aq2vqs52l0hq"
                     .to_string(),
                 nonce: 1,
@@ -132,17 +132,17 @@ mod tests {
             }],
         };
         println!(
-            "Add liquidity sample instruction: {}",
+            "Add liquidity sample instruction: {}\n",
             serde_json::to_string(&instruction_set_1).unwrap()
         );
         //
         //
         //
-        let instruction_set_2 = ReeInstructionSet {
+        let instruction_set_2 = IntentionSet {
             initiator_address: "bc1qvwvcttn5dtxleu73uuyh8w759gukjr22l7z503".to_string(),
-            instructions: vec![ReeInstruction {
+            intentions: vec![Intention {
                 exchange_id: "RICH_SWAP".to_string(),
-                method: "withdraw_liquidity".to_string(),
+                action: "withdraw_liquidity".to_string(),
                 pool_address: "bc1pu3pv54uxfps00a8ydle67fd3rktz090l07lyg7wadurq4h0lpjhqnet990"
                     .to_string(),
                 nonce: 11,
@@ -171,19 +171,19 @@ mod tests {
             }],
         };
         println!(
-            "Withdraw liquidity sample instruction: {}",
+            "Withdraw liquidity sample instruction: {}\n",
             serde_json::to_string(&instruction_set_2).unwrap()
         );
         //
         //
         //
-        let instruction_set_3 = ReeInstructionSet {
+        let instruction_set_3 = IntentionSet {
             initiator_address: "bc1plvgrpk6mxwyppvqa5j275ujatn8qgs2dcm8m3r2w7sfkn395x6us9l5qdj"
                 .to_string(),
 
-            instructions: vec![ReeInstruction {
+            intentions: vec![Intention {
                 exchange_id: "RICH_SWAP".to_string(),
-                method: "swap".to_string(),
+                action: "swap".to_string(),
                 pool_address: "bc1ptnxf8aal3apeg8r4zysr6k2mhadg833se2dm4nssl7drjlqdh2jqa4tk3p"
                     .to_string(),
                 nonce: 5,
@@ -214,19 +214,19 @@ mod tests {
             }],
         };
         println!(
-            "Runes swap btc sample instruction: {}",
+            "Runes swap btc sample instruction: {}\n",
             serde_json::to_string(&instruction_set_3).unwrap()
         );
         //
         //
         //
-        let instruction_set_4 = ReeInstructionSet {
+        let instruction_set_4 = IntentionSet {
             initiator_address: "bc1plvgrpk6mxwyppvqa5j275ujatn8qgs2dcm8m3r2w7sfkn395x6us9l5qdj"
                 .to_string(),
-            instructions: vec![
-                ReeInstruction {
+            intentions: vec![
+                Intention {
                     exchange_id: "RICH_SWAP".to_string(),
-                    method: "swap".to_string(),
+                    action: "swap".to_string(),
                     pool_address: "bc1ptnxf8aal3apeg8r4zysr6k2mhadg833se2dm4nssl7drjlqdh2jqa4tk3p"
                         .to_string(),
                     nonce: 5,
@@ -255,9 +255,9 @@ mod tests {
                         },
                     }],
                 },
-                ReeInstruction {
+                Intention {
                     exchange_id: "RICH_SWAP".to_string(),
-                    method: "swap".to_string(),
+                    action: "swap".to_string(),
                     pool_address: "bc1pu3pv54uxfps00a8ydle67fd3rktz090l07lyg7wadurq4h0lpjhqnet990"
                         .to_string(),
                     nonce: 9,
@@ -289,7 +289,7 @@ mod tests {
             ],
         };
         println!(
-            "Runes swap runes sample instruction: {}",
+            "Runes swap runes sample instruction: {}\n",
             serde_json::to_string(&instruction_set_4).unwrap()
         );
     }
