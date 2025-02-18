@@ -59,7 +59,7 @@ pub struct FinalizeTxArgs {
     pub txid: Txid,
 }
 
-pub type FinalizeTxResponse = Result<(), String>;
+pub type FinalizeTxResponse = ();
 
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct RollbackTxArgs {
@@ -67,7 +67,7 @@ pub struct RollbackTxArgs {
     pub txid: Txid,
 }
 
-pub type RollbackTxResponse = Result<(), String>;
+pub type RollbackTxResponse = ();
 
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct PoolOverview {
@@ -109,7 +109,7 @@ pub struct PoolInfo {
 
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct GetPoolInfoArgs {
-    pub pool_key: Pubkey,
+    pub pool_address: String,
 }
 
 pub type GetPoolInfoResponse = Option<PoolInfo>;
