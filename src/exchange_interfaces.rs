@@ -1,4 +1,4 @@
-use alloc::collections::BTreeSet;
+use alloc::{collections::BTreeSet, str::FromStr};
 use candid::CandidType;
 use serde::{Deserialize, Serialize};
 
@@ -51,17 +51,68 @@ pub struct SignPsbtArgs {
     pub zero_confirmed_tx_count_in_queue: u32,
 }
 
+pub type SignPsbtResponse = Result<String, String>;
+
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct FinalizeTxArgs {
     pub pool_key: Pubkey,
     pub txid: Txid,
 }
 
+pub type FinalizeTxResponse = Result<(), String>;
+
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct RollbackTxArgs {
     pub pool_key: Pubkey,
     pub txid: Txid,
 }
+
+pub type RollbackTxResponse = Result<(), String>;
+
+#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct PoolOverview {
+    pub id: Pubkey,
+    pub name: String,
+    pub address: String,
+    pub coins: Vec<CoinId>,
+    pub nonce: u64,
+    pub btc_supply: u64,
+}
+
+#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct GetPoolListArgs {
+    pub from: Option<Pubkey>,
+    pub limit: u32,
+}
+
+pub type GetPoolListResponse = Vec<PoolOverview>;
+
+#[derive(CandidType, Eq, PartialEq, Clone, Debug, Deserialize, Serialize)]
+pub struct UtxoWithRune {
+    pub txid: Txid,
+    pub vout: u32,
+    pub rune: CoinBalance,
+    pub sats: u64,
+}
+
+#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct PoolInfo {
+    pub id: Pubkey,
+    pub name: String,
+    pub address: String,
+    pub coins: Vec<CoinId>,
+    pub nonce: u64,
+    pub btc_supply: u64,
+    pub utxo: Vec<UtxoWithRune>,
+    pub attributes: String,
+}
+
+#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct GetPoolInfoArgs {
+    pub pool_key: Pubkey,
+}
+
+pub type GetPoolInfoResponse = Option<PoolInfo>;
 
 impl Intention {
     //
@@ -88,6 +139,36 @@ impl Intention {
             coin_ids.insert(coin_id);
         }
         coin_ids.into_iter().collect()
+    }
+}
+
+impl UtxoWithRune {
+    pub fn try_from(
+        outpoint: impl AsRef<str>,
+        rune: CoinBalance,
+        sats: u64,
+    ) -> Result<Self, String> {
+        let parts = outpoint.as_ref().split(':').collect::<Vec<_>>();
+        let txid = parts
+            .get(0)
+            .map(|s| Txid::from_str(s).map_err(|_| "Invalid txid in outpoint."))
+            .transpose()?
+            .ok_or("Invalid txid in outpoint.")?;
+        let vout = parts
+            .get(1)
+            .map(|s| s.parse::<u32>().map_err(|_| "Invalid vout in outpoint."))
+            .transpose()?
+            .ok_or("Invalid vout in outpoint")?;
+        Ok(UtxoWithRune {
+            txid,
+            vout,
+            rune,
+            sats,
+        })
+    }
+
+    pub fn outpoint(&self) -> String {
+        format!("{}:{}", self.txid, self.vout)
     }
 }
 
