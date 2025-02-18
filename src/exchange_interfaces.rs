@@ -74,7 +74,7 @@ pub struct PoolOverview {
     pub id: Pubkey,
     pub name: String,
     pub address: String,
-    pub coins: Vec<CoinId>,
+    pub coin_ids: Vec<CoinId>,
     pub nonce: u64,
     pub btc_supply: u64,
 }
@@ -88,10 +88,10 @@ pub struct GetPoolListArgs {
 pub type GetPoolListResponse = Vec<PoolOverview>;
 
 #[derive(CandidType, Eq, PartialEq, Clone, Debug, Deserialize, Serialize)]
-pub struct UtxoWithRune {
+pub struct Utxo {
     pub txid: Txid,
     pub vout: u32,
-    pub rune: CoinBalance,
+    pub maybe_rune: Option<CoinBalance>,
     pub sats: u64,
 }
 
@@ -100,10 +100,10 @@ pub struct PoolInfo {
     pub id: Pubkey,
     pub name: String,
     pub address: String,
-    pub coins: Vec<CoinId>,
+    pub coin_ids: Vec<CoinId>,
     pub nonce: u64,
     pub btc_supply: u64,
-    pub utxo: Vec<UtxoWithRune>,
+    pub utxos: Vec<Utxo>,
     pub attributes: String,
 }
 
@@ -142,10 +142,10 @@ impl Intention {
     }
 }
 
-impl UtxoWithRune {
+impl Utxo {
     pub fn try_from(
         outpoint: impl AsRef<str>,
-        rune: CoinBalance,
+        maybe_rune: Option<CoinBalance>,
         sats: u64,
     ) -> Result<Self, String> {
         let parts = outpoint.as_ref().split(':').collect::<Vec<_>>();
@@ -159,10 +159,10 @@ impl UtxoWithRune {
             .map(|s| s.parse::<u32>().map_err(|_| "Invalid vout in outpoint."))
             .transpose()?
             .ok_or("Invalid vout in outpoint")?;
-        Ok(UtxoWithRune {
+        Ok(Utxo {
             txid,
             vout,
-            rune,
+            maybe_rune,
             sats,
         })
     }
