@@ -9,6 +9,12 @@ pub struct InvokeArgs {
     pub intention_set: IntentionSet,
 }
 
+/// Invoke status code to be used in the response of invoke function,
+/// will be formatted as a string before returning to the caller
+///
+/// 4xx - InvokeArgs Errors
+/// 5xx - Orchestrator Errors
+/// 7xx - Exchange Errors
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub enum InvokeStatus {
     /// Invalid psbt_hex
