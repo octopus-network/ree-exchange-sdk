@@ -61,6 +61,10 @@ impl Utxo {
     pub fn outpoint(&self) -> String {
         format!("{}:{}", self.txid, self.vout)
     }
+
+    pub fn rune_amount(&self) -> u128 {
+        self.maybe_rune.map(|r| r.value).unwrap_or_default()
+    }
 }
 
 #[cfg(test)]
