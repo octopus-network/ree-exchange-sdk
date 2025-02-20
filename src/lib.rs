@@ -1,56 +1,28 @@
 extern crate alloc;
 
-use alloc::{collections::BTreeSet, str::FromStr};
+use alloc::str::FromStr;
 use candid::CandidType;
 use serde::{Deserialize, Serialize};
 
 mod coin_id;
 pub mod exchange_interfaces;
+mod intention;
 pub mod orchestrator_interfaces;
 mod pubkey;
 mod txid;
 
 pub use bitcoin;
 pub use coin_id::CoinId;
+pub use intention::*;
 pub use pubkey::Pubkey;
 pub use txid::Txid;
 
-#[derive(CandidType, Copy, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(
+    CandidType, Copy, Clone, Debug, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord,
+)]
 pub struct CoinBalance {
     pub id: CoinId,
     pub value: u128,
-}
-
-#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct InputCoin {
-    // The address of the owner of the coins
-    pub from: String,
-    pub coin: CoinBalance,
-}
-
-#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct OutputCoin {
-    // The address of the receiver of the coins
-    pub to: String,
-    pub coin: CoinBalance,
-}
-
-#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct Intention {
-    pub exchange_id: String,
-    pub action: String,
-    pub pool_address: String,
-    pub nonce: u64,
-    pub pool_utxo_spend: Vec<String>,
-    pub pool_utxo_receive: Vec<String>,
-    pub input_coins: Vec<InputCoin>,
-    pub output_coins: Vec<OutputCoin>,
-}
-
-#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct IntentionSet {
-    pub initiator_address: String,
-    pub intentions: Vec<Intention>,
 }
 
 #[derive(CandidType, Eq, PartialEq, Clone, Debug, Deserialize, Serialize)]
@@ -59,34 +31,6 @@ pub struct Utxo {
     pub vout: u32,
     pub maybe_rune: Option<CoinBalance>,
     pub sats: u64,
-}
-
-impl Intention {
-    //
-    pub fn input_coin_ids(&self) -> Vec<CoinId> {
-        self.input_coins
-            .iter()
-            .map(|input_coin| input_coin.coin.id.clone())
-            .collect()
-    }
-    //
-    pub fn output_coin_ids(&self) -> Vec<CoinId> {
-        self.output_coins
-            .iter()
-            .map(|output_coin| output_coin.coin.id.clone())
-            .collect()
-    }
-    //
-    pub fn all_coin_ids(&self) -> Vec<CoinId> {
-        let mut coin_ids: BTreeSet<CoinId> = BTreeSet::new();
-        for coin_id in self.input_coin_ids().into_iter() {
-            coin_ids.insert(coin_id);
-        }
-        for coin_id in self.output_coin_ids().into_iter() {
-            coin_ids.insert(coin_id);
-        }
-        coin_ids.into_iter().collect()
-    }
 }
 
 impl Utxo {
