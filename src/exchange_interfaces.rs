@@ -35,9 +35,8 @@ pub struct PoolOverview {
     pub id: Pubkey,
     pub name: String,
     pub address: String,
-    pub coin_ids: Vec<CoinId>,
     pub nonce: u64,
-    pub btc_supply: u64,
+    pub btc_reserved: u64,
 }
 
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -53,9 +52,9 @@ pub struct PoolInfo {
     pub id: Pubkey,
     pub name: String,
     pub address: String,
-    pub coin_ids: Vec<CoinId>,
     pub nonce: u64,
-    pub btc_supply: u64,
+    pub coin_reserved: Vec<CoinBalance>,
+    pub btc_reserved: u64,
     pub utxos: Vec<Utxo>,
     pub attributes: String,
 }
