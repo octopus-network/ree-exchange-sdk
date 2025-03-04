@@ -32,11 +32,12 @@ pub type RollbackTxResponse = ();
 
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct PoolOverview {
-    pub id: Pubkey,
+    pub key: Pubkey,
     pub name: String,
     pub address: String,
     pub nonce: u64,
     pub btc_reserved: u64,
+    pub coin_reserved: Vec<CoinBalance>,
 }
 
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -49,7 +50,7 @@ pub type GetPoolListResponse = Vec<PoolOverview>;
 
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct PoolInfo {
-    pub id: Pubkey,
+    pub key: Pubkey,
     pub name: String,
     pub address: String,
     pub nonce: u64,
