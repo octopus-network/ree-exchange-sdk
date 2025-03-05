@@ -18,6 +18,8 @@ pub struct InvokeArgs {
 /// 7xx - Exchange errors
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub enum InvokeStatus {
+    /// Success
+    _200,
     /// Transaction fee too low
     _301(String),
     /// Another invoke is in progress
@@ -55,7 +57,7 @@ pub enum InvokeStatus {
     /// Invalid final tx
     _505(String),
     /// Invoke failed due to exchange error
-    _599(String),
+    _599 { txid: String, inner_error: String },
     /// Exchange not reachable
     _701 {
         intention_index: usize,
@@ -80,6 +82,7 @@ pub type InvokeResponse = Result<String, String>;
 impl core::fmt::Display for InvokeStatus {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            InvokeStatus::_200 => write!(f, "200 Success."),
             InvokeStatus::_301(msg) => {
                 write!(f, "301 Transaction fee too low: {}. Maybe try again.", msg)
             }
@@ -118,10 +121,10 @@ impl core::fmt::Display for InvokeStatus {
             InvokeStatus::_503(msg) => write!(f, "503 Rune indexer not reachable: {}", msg),
             InvokeStatus::_504(msg) => write!(f, "504 Rune indexer returned error: {}", msg),
             InvokeStatus::_505(msg) => write!(f, "505 Invalid final tx: {}", msg),
-            InvokeStatus::_599(msg) => write!(
+            InvokeStatus::_599 { txid, inner_error } => write!(
                 f,
-                "599 Invoke failed due to exchange error. Please contact support with txid: {}",
-                msg
+                "599 Invoke failed due to exchange error. Txid: {}, Inner error: {}",
+                txid, inner_error
             ),
             InvokeStatus::_701 {
                 intention_index,
