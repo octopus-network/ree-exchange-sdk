@@ -80,6 +80,7 @@ mod tests {
             intentions: vec![Intention {
                 exchange_id: "RICH_SWAP".to_string(),
                 action: "add_liquidity".to_string(),
+                action_params: String::new(),
                 pool_address: "bc1pxtmh763568jd8pz9m8wekt2yrqyntqv2wk465mgpzlr9f2aq2vqs52l0hq"
                     .to_string(),
                 nonce: 1,
@@ -119,6 +120,7 @@ mod tests {
             intentions: vec![Intention {
                 exchange_id: "RICH_SWAP".to_string(),
                 action: "withdraw_liquidity".to_string(),
+                action_params: String::new(),
                 pool_address: "bc1pu3pv54uxfps00a8ydle67fd3rktz090l07lyg7wadurq4h0lpjhqnet990"
                     .to_string(),
                 nonce: 11,
@@ -160,6 +162,7 @@ mod tests {
             intentions: vec![Intention {
                 exchange_id: "RICH_SWAP".to_string(),
                 action: "swap".to_string(),
+                action_params: String::new(),
                 pool_address: "bc1ptnxf8aal3apeg8r4zysr6k2mhadg833se2dm4nssl7drjlqdh2jqa4tk3p"
                     .to_string(),
                 nonce: 5,
@@ -203,6 +206,7 @@ mod tests {
                 Intention {
                     exchange_id: "RICH_SWAP".to_string(),
                     action: "swap".to_string(),
+                    action_params: String::new(),
                     pool_address: "bc1ptnxf8aal3apeg8r4zysr6k2mhadg833se2dm4nssl7drjlqdh2jqa4tk3p"
                         .to_string(),
                     nonce: 5,
@@ -234,6 +238,7 @@ mod tests {
                 Intention {
                     exchange_id: "RICH_SWAP".to_string(),
                     action: "swap".to_string(),
+                    action_params: String::new(),
                     pool_address: "bc1pu3pv54uxfps00a8ydle67fd3rktz090l07lyg7wadurq4h0lpjhqnet990"
                         .to_string(),
                     nonce: 9,

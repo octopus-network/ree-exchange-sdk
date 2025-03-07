@@ -22,6 +22,7 @@ pub struct OutputCoin {
 pub struct Intention {
     pub exchange_id: String,
     pub action: String,
+    pub action_params: String,
     pub pool_address: String,
     pub nonce: u64,
     pub pool_utxo_spend: Vec<String>,
