@@ -1,0 +1,65 @@
+{
+    "initiator_address": "bc1plvgrpk6mxwyppvqa5j275ujatn8qgs2dcm8m3r2w7sfkn395x6us9l5qdj",
+    "intentions": [
+        {
+            "exchange_id": "RICH_SWAP",
+            "action": "swap",
+            "pool_address": "bc1ptnxf8aal3apeg8r4zysr6k2mhadg833se2dm4nssl7drjlqdh2jqa4tk3p",
+            "nonce": 5,
+            "pool_utxo_spend": [
+                "17616a9d2258c41bea2175e64ecc2e5fc45ae18be5c9003e058cb0bb85301fd8:0"
+            ],
+            "pool_utxo_receive": [
+                "0cec5e1ac7688744dc7af59e8e3cd7be794b0f6dfec9357181759dc4c9c9e541:0"
+            ],
+            "input_coins": [
+                {
+                    "from": "bc1plvgrpk6mxwyppvqa5j275ujatn8qgs2dcm8m3r2w7sfkn395x6us9l5qdj",
+                    "coin": {
+                        "id": "840000:846",
+                        "value": 10000000
+                    }
+                }
+            ],
+            "output_coins": [
+                {
+                    "to": "bc1pu3pv54uxfps00a8ydle67fd3rktz090l07lyg7wadurq4h0lpjhqnet990",
+                    "coin": {
+                        "id": "0:0",
+                        "value": 25523
+                    }
+                }
+            ]
+        },
+        {
+            "exchange_id": "RICH_SWAP",
+            "action": "swap",
+            "pool_address": "bc1pu3pv54uxfps00a8ydle67fd3rktz090l07lyg7wadurq4h0lpjhqnet990",
+            "nonce": 9,
+            "pool_utxo_spend": [
+                "9c3590a30d7b5d27f264a295aec6ed15c83618c152c89b28b81a460fcbb66514:1"
+            ],
+            "pool_utxo_receive": [
+                "0cec5e1ac7688744dc7af59e8e3cd7be794b0f6dfec9357181759dc4c9c9e541:2"
+            ],
+            "input_coins": [
+                {
+                    "from": "bc1pu3pv54uxfps00a8ydle67fd3rktz090l07lyg7wadurq4h0lpjhqnet990",
+                    "coin": {
+                        "id": "0:0",
+                        "value": 25523
+                    }
+                }
+            ],
+            "output_coins": [
+                {
+                    "to": "bc1plvgrpk6mxwyppvqa5j275ujatn8qgs2dcm8m3r2w7sfkn395x6us9l5qdj",
+                    "coin": {
+                        "id": "840106:129",
+                        "value": 672563
+                    }
+                }
+            ]
+        }
+    ]
+}
