@@ -20,7 +20,7 @@ Implementation Notes:
 - The REE Orchestrator calls these functions to interact with exchanges **WITHOUT** attaching any cycles.
 - Every exchange **MUST** implement these functions **exactly as defined** in this repository. Failure to do so will prevent the exchange from being registered in the REE Orchestrator, or may cause a registered exchange to be halted.
 - These functions may be implemented as `async` or synchronous.
-- They may be declared with `#[ic_cdk::query]` or `#[ic_cdk::update]` in the exchange canister.
+- The `get_pool_list`, `get_pool_info` and `get_minimal_tx_value` may be declared with `#[ic_cdk::query]` or `#[ic_cdk::update]` in the exchange canister. The other functions **MUST** be declared with `#[ic_cdk::update]`.
 - All parameters and return types are defined in the `ree_types::exchange_interfaces` module.
 
 ### Get Pool List
@@ -36,7 +36,7 @@ pub struct GetPoolListArgs {
 }
 ```
 
-Return Type:
+Return Type: `Vec<PoolOverview>`, where `PoolOverview` is defined as:
 
 ```rust
 pub struct PoolOverview {
@@ -61,7 +61,7 @@ pub struct GetPoolInfoArgs {
 }
 ```
 
-Return Type:
+Return Type: `Option<PoolInfo>`, where `PoolInfo` is defined as:
 
 ```rust
 pub struct PoolInfo {
@@ -112,7 +112,7 @@ pub struct ExecuteTxArgs {
 
 Return Type:
 
-- `Ok(String)`: The signed PSBT data in hex format if required.
+- `Ok(String)`: The signed PSBT data in hex format. The exchange can add corresponding signature(s) to the PSBT data or not, but a valid PSBT data with the same `txid` with the given `psbt_hex` **MUST** be returned.
 - `Err(String)`: An error message if execution fails.
 
 ### Finalize Tx
