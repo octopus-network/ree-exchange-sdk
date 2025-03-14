@@ -52,7 +52,7 @@ pub struct GetMinimalTxValueArgs {
 }
 
 /// The response for the `get_minimal_tx_value` function.
-pub type GetMinimalTxValueResponse = Result<u64, String>;
+pub type GetMinimalTxValueResponse = u64;
 
 /// The parameters for the `execute_tx` function.
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]

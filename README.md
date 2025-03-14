@@ -10,7 +10,7 @@ In REE, every exchange must implement the following six functions:
 |-------------------|------------------------|----------------------|-------------|
 | `get_pool_list`   | `GetPoolListArgs`       | `Vec<PoolOverview>`  | See [Get Pool List](#get-pool-list). |
 | `get_pool_info`   | `GetPoolInfoArgs`       | `Option<PoolInfo>`   | See [Get Pool Info](#get-pool-info). |
-| `get_minimal_tx_value` | `GetMinimalTxValueArgs` | `Result<u64, String>` | See [Get Minimal Tx Value](#get-minimal-tx-value). |
+| `get_minimal_tx_value` | `GetMinimalTxValueArgs` | `u64` | See [Get Minimal Tx Value](#get-minimal-tx-value). |
 | `execute_tx`      | `ExecuteTxArgs`         | `Result<String, String>` | See [Execute Tx](#execute-tx). |
 | `finalize_tx`     | `FinalizeTxArgs`        | `Result<(), String>`  | See [Finalize Tx](#finalize-tx). |
 | `rollback_tx`     | `RollbackTxArgs`        | `Result<(), String>`  | See [Rollback Tx](#rollback-tx). |
@@ -89,10 +89,7 @@ pub struct GetMinimalTxValueArgs {
 }
 ```
 
-Return Type:
-
-- `Ok(u64)`: The minimal transaction value in `sats`.
-- `Err(String)`: An error message if retrieval fails.
+Return Type: `u64`, the minimal transaction value in `sats`.
 
 ### Execute Tx
 
