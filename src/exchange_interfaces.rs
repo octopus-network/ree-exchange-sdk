@@ -13,7 +13,7 @@ pub struct GetPoolListArgs {
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct PoolInfo {
     pub key: Pubkey,
-    pub key_derivation_path: String,
+    pub key_derivation_path: Vec<Vec<u8>>,
     pub name: String,
     pub address: String,
     pub nonce: u64,
