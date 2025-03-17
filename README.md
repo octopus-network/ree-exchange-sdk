@@ -8,7 +8,7 @@ In REE, every exchange must implement the following six functions:
 
 | Function Name      | Parameters               | Return Type           | Description |
 |-------------------|------------------------|----------------------|-------------|
-| `get_pool_list`   | `GetPoolListArgs`       | `Vec<PoolOverview>`  | See [Get Pool List](#get-pool-list). |
+| `get_pool_list`   | `GetPoolListArgs`       | `Vec<PoolInfo>`  | See [Get Pool List](#get-pool-list). |
 | `get_pool_info`   | `GetPoolInfoArgs`       | `Option<PoolInfo>`   | See [Get Pool Info](#get-pool-info). |
 | `get_minimal_tx_value` | `GetMinimalTxValueArgs` | `u64` | See [Get Minimal Tx Value](#get-minimal-tx-value). |
 | `execute_tx`      | `ExecuteTxArgs`         | `Result<String, String>` | See [Execute Tx](#execute-tx). |
@@ -36,16 +36,19 @@ pub struct GetPoolListArgs {
 }
 ```
 
-Return Type: `Vec<PoolOverview>`, where `PoolOverview` is defined as:
+Return Type: `Vec<PoolInfo>`, where `PoolInfo` is defined as:
 
 ```rust
-pub struct PoolOverview {
+pub struct PoolInfo {
     pub key: Pubkey,
+    pub key_derivation_path: String,
     pub name: String,
     pub address: String,
     pub nonce: u64,
-    pub btc_reserved: u64,
     pub coin_reserved: Vec<CoinBalance>,
+    pub btc_reserved: u64,
+    pub utxos: Vec<Utxo>,
+    pub attributes: String,
 }
 ```
 
@@ -61,20 +64,7 @@ pub struct GetPoolInfoArgs {
 }
 ```
 
-Return Type: `Option<PoolInfo>`, where `PoolInfo` is defined as:
-
-```rust
-pub struct PoolInfo {
-    pub key: Pubkey,
-    pub name: String,
-    pub address: String,
-    pub nonce: u64,
-    pub coin_reserved: Vec<CoinBalance>,
-    pub btc_reserved: u64,
-    pub utxos: Vec<Utxo>,
-    pub attributes: String,
-}
-```
+Return Type: `Option<PoolInfo>`
 
 ### Get Minimal Tx Value
 

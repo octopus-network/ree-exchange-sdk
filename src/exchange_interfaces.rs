@@ -11,27 +11,9 @@ pub struct GetPoolListArgs {
 }
 
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct PoolOverview {
-    pub key: Pubkey,
-    pub name: String,
-    pub address: String,
-    pub nonce: u64,
-    pub btc_reserved: u64,
-    pub coin_reserved: Vec<CoinBalance>,
-}
-
-/// The response for the `get_pool_list` function.
-pub type GetPoolListResponse = Vec<PoolOverview>;
-
-/// The parameters for the `get_pool_info` function.
-#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct GetPoolInfoArgs {
-    pub pool_address: String,
-}
-
-#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct PoolInfo {
     pub key: Pubkey,
+    pub key_derivation_path: String,
     pub name: String,
     pub address: String,
     pub nonce: u64,
@@ -39,6 +21,15 @@ pub struct PoolInfo {
     pub btc_reserved: u64,
     pub utxos: Vec<Utxo>,
     pub attributes: String,
+}
+
+/// The response for the `get_pool_list` function.
+pub type GetPoolListResponse = Vec<PoolInfo>;
+
+/// The parameters for the `get_pool_info` function.
+#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct GetPoolInfoArgs {
+    pub pool_address: String,
 }
 
 /// The response for the `get_pool_info` function.
