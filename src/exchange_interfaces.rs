@@ -4,29 +4,6 @@ use serde::{Deserialize, Serialize};
 use crate::{CoinBalance, IntentionSet, Pubkey, Txid, Utxo};
 
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub enum SortingBy {
-    Name,
-    BtcReserved,
-    Nonce,
-    RuneId,
-}
-
-#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub enum SortingOrder {
-    Ascending,
-    Descending,
-}
-
-/// The parameters for the `get_pool_list` function.
-#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct GetPoolListArgs {
-    pub from: u32,
-    pub limit: u32,
-    pub sorting_by: SortingBy,
-    pub sorting_order: SortingOrder,
-}
-
-#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct PoolInfo {
     pub key: Pubkey,
     pub key_derivation_path: Vec<Vec<u8>>,

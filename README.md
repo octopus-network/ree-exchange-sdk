@@ -8,12 +8,13 @@ In REE, every exchange must implement the following six functions:
 
 | Function Name      | Parameters               | Return Type           | Description |
 |-------------------|------------------------|----------------------|-------------|
-| `get_pool_list`   | `GetPoolListArgs`       | `Vec<PoolInfo>`  | See [Get Pool List](#get-pool-list). |
+| `get_pool_list`   | -       | `Vec<PoolInfo>`  | See [Get Pool List](#get-pool-list). |
 | `get_pool_info`   | `GetPoolInfoArgs`       | `Option<PoolInfo>`   | See [Get Pool Info](#get-pool-info). |
 | `get_minimal_tx_value` | `GetMinimalTxValueArgs` | `u64` | See [Get Minimal Tx Value](#get-minimal-tx-value). |
 | `execute_tx`      | `ExecuteTxArgs`         | `Result<String, String>` | See [Execute Tx](#execute-tx). |
-| `finalize_tx`     | `FinalizeTxArgs`        | `Result<(), String>`  | See [Finalize Tx](#finalize-tx). |
+| `unconfirm_tx`     | `UnconfirmTxArgs`        | `Result<(), String>`  | See [Unconfirm Tx](#unconfirm-tx). |
 | `rollback_tx`     | `RollbackTxArgs`        | `Result<(), String>`  | See [Rollback Tx](#rollback-tx). |
+| `new_block`     | `NewBlockArgs`        | `Result<(), String>`  | See [New Block](#new-block). |
 
 Implementation Notes:
 
@@ -26,15 +27,6 @@ Implementation Notes:
 ### Get Pool List
 
 Returns the list of pools maintained by the exchange.
-
-Parameters:
-
-```rust
-pub struct GetPoolListArgs {
-    pub from: Option<Pubkey>,
-    pub limit: u32,
-}
-```
 
 Return Type: `Vec<PoolInfo>`, where `PoolInfo` is defined as:
 
@@ -102,22 +94,21 @@ Return Type:
 - `Ok(String)`: The signed PSBT data in hex format. The exchange can add corresponding signature(s) to the PSBT data or not, but a valid PSBT data with the same `txid` with the given `psbt_hex` **MUST** be returned.
 - `Err(String)`: An error message if execution fails.
 
-### Finalize Tx
+### Unconfirm Tx
 
-Finalizes a transaction in the exchange. **All transactions preceding the given transaction should also be considered finalized.**
+Unconfirm a previously confirmed transaction in the exchange.
 
 Parameters:
 
 ```rust
-pub struct FinalizeTxArgs {
-    pub pool_key: Pubkey,
+pub struct UnconfirmTxArgs {
     pub txid: Txid,
 }
 ```
 
 Return Type:
 
-- `Ok(())`: On successful finalization.
+- `Ok(())`: On success.
 - `Err(String)`: If an error occurs.
 
 ### Rollback Tx
@@ -128,12 +119,31 @@ Parameters:
 
 ```rust
 pub struct RollbackTxArgs {
-    pub pool_key: Pubkey,
     pub txid: Txid,
 }
 ```
 
 Return Type:
 
-- `Ok(())`: On successful rollback.
+- `Ok(())`: On success.
+- `Err(String)`: If an error occurs.
+
+### New Block
+
+Notifies the exchange of a new block. The `confirmed_txids` are an array of txid which are executed by the exchange previously, these txids are included in the given block. The exchange can use this information to update its internal state.
+
+Parameters:
+
+```rust
+pub struct NewBlockArgs {
+    pub block_height: u64,
+    pub block_hash: String,
+    pub block_timestamp: u64,
+    pub confirmed_txids: Vec<Txid>,
+}
+```
+
+Return Type:
+
+- `Ok(())`: On success.
 - `Err(String)`: If an error occurs.
