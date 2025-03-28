@@ -71,6 +71,7 @@ pub enum InvokeStatus {
     /// Exchange returned invalid psbt
     _703 {
         intention_index: usize,
+        returned_psbt_hex: String,
         error: String,
     },
 }
@@ -148,12 +149,13 @@ impl core::fmt::Display for InvokeStatus {
             }
             InvokeStatus::_703 {
                 intention_index,
+                returned_psbt_hex,
                 error,
             } => {
                 write!(
                     f,
-                    "703 Exchange returned invalid psbt: Intention index: {}, error: {}",
-                    intention_index, error
+                    "703 Exchange returned invalid psbt: Intention index: {}, returned psbt hex: {}, error: {}",
+                    intention_index, returned_psbt_hex, error
                 )
             }
         }
