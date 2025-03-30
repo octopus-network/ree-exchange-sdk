@@ -41,11 +41,8 @@ pub enum InvokeStatus {
         intention_index: usize,
         error: String,
     },
-    /// Intention mismatched with the psbt
-    _410 {
-        intention_index: usize,
-        error: String,
-    },
+    /// Intention set mismatched with the psbt
+    _410(String),
     /// Invoke is paused
     _501,
     /// Orchestrator internal error
@@ -107,15 +104,8 @@ impl core::fmt::Display for InvokeStatus {
                     intention_index, error
                 )
             }
-            InvokeStatus::_410 {
-                intention_index,
-                error,
-            } => {
-                write!(
-                    f,
-                    "410 Intention mismatched with the psbt: Intention index: {}, error: {}",
-                    intention_index, error
-                )
+            InvokeStatus::_410(msg) => {
+                write!(f, "410 Intention set mismatched with psbt: {}", msg)
             }
             InvokeStatus::_501 => write!(f, "501 Invoke is paused. Please contact support."),
             InvokeStatus::_502(msg) => write!(f, "502 Orchestrator internal error: {}", msg),
