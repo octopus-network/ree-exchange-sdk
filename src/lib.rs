@@ -9,6 +9,7 @@ pub mod exchange_interfaces;
 mod intention;
 pub mod orchestrator_interfaces;
 mod pubkey;
+pub mod schnorr;
 mod txid;
 
 pub use bitcoin;
