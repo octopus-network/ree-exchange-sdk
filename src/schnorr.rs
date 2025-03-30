@@ -1,5 +1,9 @@
+use crate::Pubkey;
+use bitcoin::{key::TapTweak, secp256k1::Secp256k1};
 use candid::{CandidType, Principal};
-use ic_cdk::api::management_canister::schnorr::SchnorrAlgorithm;
+use ic_cdk::api::management_canister::schnorr::{
+    self, SchnorrAlgorithm, SchnorrKeyId, SchnorrPublicKeyArgument,
+};
 use serde::{Deserialize, Serialize};
 use serde_bytes::ByteBuf;
 
@@ -16,12 +20,6 @@ struct ManagementCanisterSchnorrPublicKeyRequest {
 struct ManagementCanisterSchnorrPublicKeyReply {
     pub public_key: Vec<u8>,
     pub chain_code: Vec<u8>,
-}
-
-#[derive(CandidType, Serialize, Debug, Clone)]
-struct SchnorrKeyId {
-    pub algorithm: SchnorrAlgorithm,
-    pub name: String,
 }
 
 #[derive(CandidType, Serialize, Debug)]
@@ -115,28 +113,38 @@ pub async fn schnorr_sign(
     Ok(reply.signature)
 }
 
-// enum SchnorrKeyIds {
-//     #[allow(unused)]
-//     ChainkeyTestingCanisterKey1,
-//     #[allow(unused)]
-//     TestKeyLocalDevelopment,
-//     #[allow(unused)]
-//     TestKey1,
-//     #[allow(unused)]
-//     ProductionKey1,
-// }
+pub async fn sign_prehash_with_schnorr(
+    digest: impl AsRef<[u8; 32]>,
+    key_name: impl ToString,
+    path: Vec<u8>,
+) -> Result<Vec<u8>, String> {
+    let signature = crate::schnorr::schnorr_sign(digest.as_ref().to_vec(), path, key_name, None)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(signature)
+}
 
-// impl SchnorrKeyIds {
-//     fn to_key_id(&self, algorithm: SchnorrAlgorithm) -> SchnorrKeyId {
-//         SchnorrKeyId {
-//             algorithm,
-//             name: match self {
-//                 Self::ChainkeyTestingCanisterKey1 => "insecure_test_key_1",
-//                 Self::TestKeyLocalDevelopment => "dfx_test_key_1",
-//                 Self::TestKey1 => "test_key_1",
-//                 Self::ProductionKey1 => "key_1",
-//             }
-//             .to_string(),
-//         }
-//     }
-// }
+pub fn tweak_pubkey_with_empty(untweaked: Pubkey) -> Pubkey {
+    let secp = Secp256k1::new();
+    let (tweaked, _) = untweaked.to_x_only_public_key().tap_tweak(&secp, None);
+    let raw = tweaked.serialize().to_vec();
+    Pubkey::from_raw([&[0x00], &raw[..]].concat()).expect("tweaked 33bytes; qed")
+}
+
+pub async fn request_schnorr_key(key_name: impl ToString, path: Vec<u8>) -> Result<Pubkey, String> {
+    let arg = SchnorrPublicKeyArgument {
+        canister_id: None,
+        derivation_path: vec![path],
+        key_id: SchnorrKeyId {
+            algorithm: SchnorrAlgorithm::Bip340secp256k1,
+            name: key_name.to_string(),
+        },
+    };
+    let res = schnorr::schnorr_public_key(arg)
+        .await
+        .map_err(|(code, err)| format!("schnorr_public_key failed {code:?} {err:?}"))?;
+    let mut raw = res.0.public_key.to_vec();
+    raw[0] = 0x00;
+    let pubkey = Pubkey::from_raw(raw).expect("management api error: invalid pubkey");
+    Ok(pubkey)
+}

@@ -8,6 +8,7 @@ mod coin_id;
 pub mod exchange_interfaces;
 mod intention;
 pub mod orchestrator_interfaces;
+pub mod psbt;
 mod pubkey;
 pub mod schnorr;
 mod txid;
