@@ -147,3 +147,71 @@ Return Type:
 
 - `Ok(())`: On success.
 - `Err(String)`: If an error occurs.
+
+## REE Invoke
+
+The `invoke` function in the REE Orchestrator serves as the main entry point for the REE protocol. This function takes `InvokeArgs` as a parameter, which includes the following fields:
+
+```rust
+pub struct InvokeArgs {
+    pub psbt_hex: String,
+    pub intention_set: IntentionSet,
+}
+```
+
+Where `IntentionSet` is defined as:
+
+```rust
+pub struct IntentionSet {
+    pub initiator_address: String,
+    pub tx_fee_in_sats: u64,
+    pub intentions: Vec<Intention>,
+}
+
+pub struct Intention {
+    pub exchange_id: String,
+    pub action: String,
+    pub action_params: String,
+    pub pool_address: String,
+    pub nonce: u64,
+    pub pool_utxo_spend: Vec<String>,
+    pub pool_utxo_receive: Vec<String>,
+    pub input_coins: Vec<InputCoin>,
+    pub output_coins: Vec<OutputCoin>,
+}
+
+pub struct InputCoin {
+    // The address of the owner of the coins
+    pub from: String,
+    pub coin: CoinBalance,
+}
+
+pub struct OutputCoin {
+    // The address of the receiver of the coins
+    pub to: String,
+    pub coin: CoinBalance,
+}
+```
+
+The `invoke` function returns a `Result<String, String>`, where:
+
+- The `Ok` value is the `txid` of the final Bitcoin transaction, which will be formed and broadcasted.
+- The `Err` value is an error message if the execution of `invoke` fails.
+
+The `invoke` function will call the `execute_tx` function of the exchange canister(s) based on the provided `IntentionSet`. If all intentions are successfully executed, the function broadcasts the final Bitcoin transaction and returns the `txid`.
+
+Before invoking the exchange canisters, the Orchestrator performs necessary validations on the `IntentionSet` to ensure it aligns with the provided PSBT data.
+
+### Intention Details
+
+Each `IntentionSet` can contain multiple `Intention` objects, reflecting the user's intentions. The `Intention` struct consists of the following fields:
+
+- `exchange_id`: The identifier of a registered exchange responsible for executing the intention. The Orchestrator will validate this field.
+- `action`: The specific action to be executed by the exchange. The Orchestrator will **NOT** validate this field.
+- `action_params`: Parameters for the action, specific to the exchange. The Orchestrator will **NOT** validate this field.
+- `pool_address`: The address of the exchange pool where the intention will be executed. The Orchestrator will validate this field.
+- `nonce`: A nonce representing the pool state in the exchange. The Orchestrator will **NOT** validate this field.
+- `pool_utxo_spend`: The UTXO(s) owned by the pool that will be spent in the intention.
+- `pool_utxo_receive`: The UTXO(s) that the pool will receive as part of the intention. These UTXOs should correspond to the outputs of the final Bitcoin transaction.
+- `input_coins`: The coins that will be spent in the intention. These should either come from the inputs of the final Bitcoin transaction or from previously generated `output_coins`.
+- `output_coins`: The coins that will be received in the intention. These should appear as outputs in the final Bitcoin transaction.
