@@ -4,6 +4,12 @@ use serde::{Deserialize, Serialize};
 use crate::{CoinBalance, IntentionSet, Pubkey, Txid, Utxo};
 
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct PoolBasic {
+    pub name: String,
+    pub address: String,
+}
+
+#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct PoolInfo {
     pub key: Pubkey,
     pub key_derivation_path: Vec<Vec<u8>>,
@@ -17,7 +23,7 @@ pub struct PoolInfo {
 }
 
 /// The response for the `get_pool_list` function.
-pub type GetPoolListResponse = Vec<PoolInfo>;
+pub type GetPoolListResponse = Vec<PoolBasic>;
 
 /// The parameters for the `get_pool_info` function.
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]

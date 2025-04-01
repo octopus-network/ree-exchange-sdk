@@ -26,21 +26,14 @@ Implementation Notes:
 
 ### Get Pool List
 
-Returns the list of pools maintained by the exchange.
+Returns all of pools' basic information maintained by the exchange.
 
-Return Type: `Vec<PoolInfo>`, where `PoolInfo` is defined as:
+Return Type: `Vec<PoolBasic>`, where `PoolBasic` is defined as:
 
 ```rust
-pub struct PoolInfo {
-    pub key: Pubkey,
-    pub key_derivation_path: Vec<Vec<u8>>,
+pub struct PoolBasic {
     pub name: String,
     pub address: String,
-    pub nonce: u64,
-    pub coin_reserved: Vec<CoinBalance>,
-    pub btc_reserved: u64,
-    pub utxos: Vec<Utxo>,
-    pub attributes: String,
 }
 ```
 
@@ -56,7 +49,21 @@ pub struct GetPoolInfoArgs {
 }
 ```
 
-Return Type: `Option<PoolInfo>`
+Return Type: `Option<PoolInfo>`, where `PoolInfo` is defined as:
+
+```rust
+pub struct PoolInfo {
+    pub key: Pubkey,
+    pub key_derivation_path: Vec<Vec<u8>>,
+    pub name: String,
+    pub address: String,
+    pub nonce: u64,
+    pub coin_reserved: Vec<CoinBalance>,
+    pub btc_reserved: u64,
+    pub utxos: Vec<Utxo>,
+    pub attributes: String,
+}
+```
 
 ### Get Minimal Tx Value
 
