@@ -3,11 +3,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{CoinBalance, IntentionSet, Pubkey, Txid, Utxo};
 
-/// The parameters for the `get_pool_list` function.
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct GetPoolListArgs {
-    pub from: Option<Pubkey>,
-    pub limit: u32,
+pub struct PoolBasic {
+    pub name: String,
+    pub address: String,
 }
 
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -24,7 +23,7 @@ pub struct PoolInfo {
 }
 
 /// The response for the `get_pool_list` function.
-pub type GetPoolListResponse = Vec<PoolInfo>;
+pub type GetPoolListResponse = Vec<PoolBasic>;
 
 /// The parameters for the `get_pool_info` function.
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -58,22 +57,45 @@ pub struct ExecuteTxArgs {
 /// The response for the `execute_tx` function.
 pub type ExecuteTxResponse = Result<String, String>;
 
-/// The parameters for the `finalize_tx` function.
+/// The parameters for the `unconfirm_txs` function.
+///
+/// This function will be called by REE Orchestrator when
+/// a previously confirmed transaction is unconfirmed because of a reorg or other reason.
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct FinalizeTxArgs {
-    pub pool_key: Pubkey,
-    pub txid: Txid,
+pub struct UnconfirmTxsArgs {
+    pub txids: Vec<Txid>,
 }
 
-/// The response for the `finalize_tx` function.
-pub type FinalizeTxResponse = Result<(), String>;
+/// The response for the `unconfirm_txs` function.
+pub type UnconfirmTxsResponse = Result<(), String>;
 
 /// The parameters for the `rollback_tx` function.
+///
+/// This function will be called by REE Orchestrator when
+/// an unconfirmed transaction is rejected by the Mempool.
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct RollbackTxArgs {
-    pub pool_key: Pubkey,
     pub txid: Txid,
 }
 
 /// The response for the `rollback_tx` function.
 pub type RollbackTxResponse = Result<(), String>;
+
+/// Parameters for the `new_block` function.
+///
+/// This function is called by the REE Orchestrator when
+/// a new block is detected by the Rune Indexer.
+///
+/// The `confirmed_txids` field contains the txids of all transactions confirmed in the new block,
+/// which are associated with the exchange to be called.
+#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct NewBlockArgs {
+    pub block_height: u32,
+    pub block_hash: String,
+    /// The block timestamp in seconds since the Unix epoch.
+    pub block_time: u64,
+    pub confirmed_txids: Vec<Txid>,
+}
+
+/// The response for the `new_block` function.
+pub type NewBlockResponse = Result<(), String>;

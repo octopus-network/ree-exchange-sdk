@@ -34,6 +34,7 @@ pub struct Intention {
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct IntentionSet {
     pub initiator_address: String,
+    pub tx_fee_in_sats: u64,
     pub intentions: Vec<Intention>,
 }
 

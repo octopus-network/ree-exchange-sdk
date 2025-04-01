@@ -8,7 +8,9 @@ mod coin_id;
 pub mod exchange_interfaces;
 mod intention;
 pub mod orchestrator_interfaces;
+pub mod psbt;
 mod pubkey;
+pub mod schnorr;
 mod txid;
 
 pub use bitcoin;
@@ -77,6 +79,7 @@ mod tests {
     fn test_ree_instruction_json() {
         let instruction_set_1 = IntentionSet {
             initiator_address: "bc1q8anrrgczju8zn02ww06slsfh9grm07de7r9e3k".to_string(),
+            tx_fee_in_sats: 360,
             intentions: vec![Intention {
                 exchange_id: "RICH_SWAP".to_string(),
                 action: "add_liquidity".to_string(),
@@ -117,6 +120,7 @@ mod tests {
         //
         let instruction_set_2 = IntentionSet {
             initiator_address: "bc1qvwvcttn5dtxleu73uuyh8w759gukjr22l7z503".to_string(),
+            tx_fee_in_sats: 330,
             intentions: vec![Intention {
                 exchange_id: "RICH_SWAP".to_string(),
                 action: "withdraw_liquidity".to_string(),
@@ -158,7 +162,7 @@ mod tests {
         let instruction_set_3 = IntentionSet {
             initiator_address: "bc1plvgrpk6mxwyppvqa5j275ujatn8qgs2dcm8m3r2w7sfkn395x6us9l5qdj"
                 .to_string(),
-
+            tx_fee_in_sats: 340,
             intentions: vec![Intention {
                 exchange_id: "RICH_SWAP".to_string(),
                 action: "swap".to_string(),
@@ -202,6 +206,7 @@ mod tests {
         let instruction_set_4 = IntentionSet {
             initiator_address: "bc1plvgrpk6mxwyppvqa5j275ujatn8qgs2dcm8m3r2w7sfkn395x6us9l5qdj"
                 .to_string(),
+            tx_fee_in_sats: 410,
             intentions: vec![
                 Intention {
                     exchange_id: "RICH_SWAP".to_string(),
