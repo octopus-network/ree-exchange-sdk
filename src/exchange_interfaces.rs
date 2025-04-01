@@ -51,17 +51,17 @@ pub struct ExecuteTxArgs {
 /// The response for the `execute_tx` function.
 pub type ExecuteTxResponse = Result<String, String>;
 
-/// The parameters for the `unconfirm_tx` function.
+/// The parameters for the `unconfirm_txs` function.
 ///
 /// This function will be called by REE Orchestrator when
 /// a previously confirmed transaction is unconfirmed because of a reorg or other reason.
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct UnconfirmTxArgs {
-    pub txid: Txid,
+pub struct UnconfirmTxsArgs {
+    pub txids: Vec<Txid>,
 }
 
-/// The response for the `unconfirm_tx` function.
-pub type UnconfirmTxResponse = Result<(), String>;
+/// The response for the `unconfirm_txs` function.
+pub type UnconfirmTxsResponse = Result<(), String>;
 
 /// The parameters for the `rollback_tx` function.
 ///
@@ -84,7 +84,7 @@ pub type RollbackTxResponse = Result<(), String>;
 /// which are associated with the exchange to be called.
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct NewBlockArgs {
-    pub block_height: u64,
+    pub block_height: u32,
     pub block_hash: String,
     pub block_time: u64,
     pub confirmed_txids: Vec<Txid>,
