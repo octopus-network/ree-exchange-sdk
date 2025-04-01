@@ -25,9 +25,10 @@ pub async fn sign(psbt: &mut Psbt, pool_input: &Utxo, path: Vec<u8>) -> Result<(
     for (i, input) in psbt.unsigned_tx.input.iter().enumerate() {
         let outpoint = &input.previous_output;
         if let Some(_) = cmp(pool_input, outpoint) {
-            (i < psbt.inputs.len())
-                .then(|| ())
-                .ok_or("inputs not enough".to_string())?;
+            (i < psbt.inputs.len()).then(|| ()).ok_or(format!(
+                "Input index {i} exceeds available inputs ({})",
+                psbt.inputs.len()
+            ))?;
             let input = &mut psbt.inputs[i];
             let sighash = cache
                 .taproot_key_spend_signature_hash(
