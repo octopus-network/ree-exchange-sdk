@@ -92,6 +92,7 @@ pub type RollbackTxResponse = Result<(), String>;
 pub struct NewBlockArgs {
     pub block_height: u32,
     pub block_hash: String,
+    /// The block timestamp in seconds since the Unix epoch.
     pub block_time: u64,
     pub confirmed_txids: Vec<Txid>,
 }

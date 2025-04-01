@@ -145,7 +145,8 @@ Parameters:
 pub struct NewBlockArgs {
     pub block_height: u32,
     pub block_hash: String,
-    pub block_timestamp: u64,
+    /// The block timestamp in seconds since the Unix epoch.
+    pub block_time: u64,
     pub confirmed_txids: Vec<Txid>,
 }
 ```
