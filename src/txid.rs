@@ -41,7 +41,10 @@ impl Storable for Txid {
         bincode::deserialize(bytes.as_ref()).unwrap()
     }
 
-    const BOUND: Bound = Bound::Unbounded;
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 72,
+        is_fixed_size: true,
+    };
 }
 
 impl Into<bitcoin::Txid> for Txid {
@@ -120,7 +123,7 @@ impl Txid {
     }
 }
 
-#[derive(Debug, Clone, CandidType, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, CandidType, serde::Serialize, serde::Deserialize)]
 pub struct TxRecord {
     pub pools: Vec<String>,
 }
