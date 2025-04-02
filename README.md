@@ -12,7 +12,6 @@ In REE, every exchange must implement the following six functions:
 | `get_pool_info`   | `GetPoolInfoArgs`       | `Option<PoolInfo>`   | See [Get Pool Info](#get-pool-info). |
 | `get_minimal_tx_value` | `GetMinimalTxValueArgs` | `u64` | See [Get Minimal Tx Value](#get-minimal-tx-value). |
 | `execute_tx`      | `ExecuteTxArgs`         | `Result<String, String>` | See [Execute Tx](#execute-tx). |
-| `unconfirm_txs`     | `UnconfirmTxsArgs`        | `Result<(), String>`  | See [Unconfirm Txs](#unconfirm-txs). |
 | `rollback_tx`     | `RollbackTxArgs`        | `Result<(), String>`  | See [Rollback Tx](#rollback-tx). |
 | `new_block`     | `NewBlockArgs`        | `Result<(), String>`  | See [New Block](#new-block). |
 
@@ -101,23 +100,6 @@ Return Type:
 - `Ok(String)`: The signed PSBT data in hex format. The exchange can add corresponding signature(s) to the PSBT data or not, but a valid PSBT data with the same `txid` with the given `psbt_hex` **MUST** be returned.
 - `Err(String)`: An error message if execution fails.
 
-### Unconfirm Txs
-
-Unconfirm previously confirmed transaction(s) in the exchange. (This may caused by a reorg of the Bitcoin blockchain.)
-
-Parameters:
-
-```rust
-pub struct UnconfirmTxsArgs {
-    pub txids: Vec<Txid>,
-}
-```
-
-Return Type:
-
-- `Ok(())`: On success.
-- `Err(String)`: If an error occurs.
-
 ### Rollback Tx
 
 Rolls back a transaction in the exchange. **All transactions following the given transaction should also be considered canceled.**
@@ -137,18 +119,20 @@ Return Type:
 
 ### New Block
 
-Notifies the exchange of a new block. The `confirmed_txids` are an array of txid which are executed by the exchange previously, these txids are included in the given block. The exchange can use this information to update its internal state.
+Notifies the exchange of a new block. The `confirmed_txids` in `NewBlockInfo` are an array of txid which are executed by the exchange previously, these txids are included in the given block (that is considered as `confirmed`). The exchange can use this information to update its internal state.
 
 Parameters:
 
 ```rust
-pub struct NewBlockArgs {
+pub struct NewBlockInfo {
     pub block_height: u32,
     pub block_hash: String,
     /// The block timestamp in seconds since the Unix epoch.
-    pub block_time: u64,
+    pub block_timestamp: u64,
     pub confirmed_txids: Vec<Txid>,
 }
+
+pub type NewBlockArgs = NewBlockInfo;
 ```
 
 Return Type:

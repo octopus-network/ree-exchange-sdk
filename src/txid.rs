@@ -1,10 +1,9 @@
-use alloc::str::FromStr;
+use alloc::{borrow::Cow, str::FromStr};
 use candid::{
     types::{Serializer, Type, TypeInner},
     CandidType,
 };
 use ic_stable_structures::storable::{Bound, Storable};
-use std::borrow::Cow;
 
 #[derive(Eq, Ord, PartialOrd, PartialEq, Clone, Copy, Debug)]
 pub struct Txid([u8; 32]);
@@ -38,7 +37,7 @@ impl Storable for Txid {
         Cow::Owned(bytes)
     }
 
-    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
         bincode::deserialize(bytes.as_ref()).unwrap()
     }
 
@@ -132,7 +131,7 @@ impl Storable for TxRecord {
         Cow::Owned(bytes)
     }
 
-    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
         bincode::deserialize(bytes.as_ref()).unwrap()
     }
 
