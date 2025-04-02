@@ -8,7 +8,7 @@ In REE, every exchange must implement the following six functions:
 
 | Function Name      | Parameters               | Return Type           | Description |
 |-------------------|------------------------|----------------------|-------------|
-| `get_pool_list`   | -       | `Vec<PoolInfo>`  | See [Get Pool List](#get-pool-list). |
+| `get_pool_list`   | -       | `Vec<PoolBasic>`  | See [Get Pool List](#get-pool-list). |
 | `get_pool_info`   | `GetPoolInfoArgs`       | `Option<PoolInfo>`   | See [Get Pool Info](#get-pool-info). |
 | `get_minimal_tx_value` | `GetMinimalTxValueArgs` | `u64` | See [Get Minimal Tx Value](#get-minimal-tx-value). |
 | `execute_tx`      | `ExecuteTxArgs`         | `Result<String, String>` | See [Execute Tx](#execute-tx). |
