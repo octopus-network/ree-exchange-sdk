@@ -17,7 +17,7 @@ pub use bitcoin;
 pub use coin_id::CoinId;
 pub use intention::*;
 pub use pubkey::Pubkey;
-pub use txid::Txid;
+pub use txid::{TxRecord, Txid};
 
 #[derive(
     CandidType, Copy, Clone, Debug, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord,

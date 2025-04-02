@@ -3,8 +3,10 @@ use candid::{
     types::{Serializer, Type, TypeInner},
     CandidType,
 };
+use ic_stable_structures::storable::{Bound, Storable};
+use std::borrow::Cow;
 
-#[derive(Eq, PartialEq, Clone, Copy, Debug)]
+#[derive(Eq, Ord, PartialOrd, PartialEq, Clone, Copy, Debug)]
 pub struct Txid([u8; 32]);
 
 impl CandidType for Txid {
@@ -28,6 +30,19 @@ impl FromStr for Txid {
         let bytes = bitcoin::Txid::from_str(s).map_err(|_| "Invalid txid".to_string())?;
         Ok(Self(*AsRef::<[u8; 32]>::as_ref(&bytes)))
     }
+}
+
+impl Storable for Txid {
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let bytes = bincode::serialize(self).unwrap();
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        bincode::deserialize(bytes.as_ref()).unwrap()
+    }
+
+    const BOUND: Bound = Bound::Unbounded;
 }
 
 impl Into<bitcoin::Txid> for Txid {
@@ -104,6 +119,24 @@ impl Txid {
             format!("Invalid bytes for a Bitcoin Txid: {:?}", e)
         })?))
     }
+}
+
+#[derive(Debug, Clone, CandidType, serde::Serialize, serde::Deserialize)]
+pub struct TxRecord {
+    pub pools: Vec<String>,
+}
+
+impl Storable for TxRecord {
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let bytes = bincode::serialize(self).unwrap();
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        bincode::deserialize(bytes.as_ref()).unwrap()
+    }
+
+    const BOUND: Bound = Bound::Unbounded;
 }
 
 #[cfg(test)]
