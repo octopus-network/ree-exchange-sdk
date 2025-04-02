@@ -1,4 +1,6 @@
+use alloc::borrow::Cow;
 use candid::CandidType;
+use ic_stable_structures::{storable::Bound, Storable};
 use serde::{Deserialize, Serialize};
 
 use crate::{CoinBalance, IntentionSet, Pubkey, Txid, Utxo};
@@ -57,18 +59,6 @@ pub struct ExecuteTxArgs {
 /// The response for the `execute_tx` function.
 pub type ExecuteTxResponse = Result<String, String>;
 
-/// The parameters for the `unconfirm_txs` function.
-///
-/// This function will be called by REE Orchestrator when
-/// a previously confirmed transaction is unconfirmed because of a reorg or other reason.
-#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct UnconfirmTxsArgs {
-    pub txids: Vec<Txid>,
-}
-
-/// The response for the `unconfirm_txs` function.
-pub type UnconfirmTxsResponse = Result<(), String>;
-
 /// The parameters for the `rollback_tx` function.
 ///
 /// This function will be called by REE Orchestrator when
@@ -81,21 +71,35 @@ pub struct RollbackTxArgs {
 /// The response for the `rollback_tx` function.
 pub type RollbackTxResponse = Result<(), String>;
 
+/// The `confirmed_txids` field contains the txids of all transactions confirmed in the new block,
+/// which are associated with the exchange to be called.
+#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct NewBlockInfo {
+    pub block_height: u32,
+    pub block_hash: String,
+    /// The block timestamp in seconds since the Unix epoch.
+    pub block_timestamp: u64,
+    pub confirmed_txids: Vec<Txid>,
+}
+
 /// Parameters for the `new_block` function.
 ///
 /// This function is called by the REE Orchestrator when
 /// a new block is detected by the Rune Indexer.
-///
-/// The `confirmed_txids` field contains the txids of all transactions confirmed in the new block,
-/// which are associated with the exchange to be called.
-#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct NewBlockArgs {
-    pub block_height: u32,
-    pub block_hash: String,
-    /// The block timestamp in seconds since the Unix epoch.
-    pub block_time: u64,
-    pub confirmed_txids: Vec<Txid>,
-}
+pub type NewBlockArgs = NewBlockInfo;
 
 /// The response for the `new_block` function.
 pub type NewBlockResponse = Result<(), String>;
+
+impl Storable for NewBlockInfo {
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let bytes = bincode::serialize(self).unwrap();
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        bincode::deserialize(bytes.as_ref()).unwrap()
+    }
+
+    const BOUND: Bound = Bound::Unbounded;
+}

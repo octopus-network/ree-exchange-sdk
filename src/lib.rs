@@ -71,7 +71,7 @@ impl Utxo {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
+    use core::str::FromStr;
 
     use super::*;
 
