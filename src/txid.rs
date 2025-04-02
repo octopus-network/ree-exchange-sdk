@@ -121,6 +121,24 @@ impl Txid {
     }
 }
 
+#[derive(Debug, Clone, CandidType, serde::Serialize, serde::Deserialize)]
+pub struct TxRecord {
+    pub pools: Vec<String>,
+}
+
+impl Storable for TxRecord {
+    fn to_bytes(&self) -> Cow<[u8]> {
+        let bytes = bincode::serialize(self).unwrap();
+        Cow::Owned(bytes)
+    }
+
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        bincode::deserialize(bytes.as_ref()).unwrap()
+    }
+
+    const BOUND: Bound = Bound::Unbounded;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
