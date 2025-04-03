@@ -10,19 +10,6 @@ use serde_bytes::ByteBuf;
 type CanisterId = Principal;
 
 #[derive(CandidType, Serialize, Debug)]
-struct ManagementCanisterSchnorrPublicKeyRequest {
-    pub canister_id: Option<CanisterId>,
-    pub derivation_path: Vec<Vec<u8>>,
-    pub key_id: SchnorrKeyId,
-}
-
-#[derive(CandidType, Deserialize, Debug)]
-struct ManagementCanisterSchnorrPublicKeyReply {
-    pub public_key: Vec<u8>,
-    pub chain_code: Vec<u8>,
-}
-
-#[derive(CandidType, Serialize, Debug)]
 struct ManagementCanisterSignatureRequest {
     pub message: Vec<u8>,
     pub aux: Option<SignWithSchnorrAux>,
@@ -52,31 +39,25 @@ fn mgmt_canister_id() -> CanisterId {
     CanisterId::from_text(MGMT_CANISTER_ID).unwrap()
 }
 
-pub async fn schnorr_pubkey(
-    derive_path: Vec<u8>,
-    key_id: impl ToString,
-) -> Result<Vec<u8>, String> {
-    let request = ManagementCanisterSchnorrPublicKeyRequest {
-        canister_id: None,
-        derivation_path: vec![derive_path],
-        key_id: SchnorrKeyId {
-            algorithm: SchnorrAlgorithm::Bip340secp256k1,
-            name: key_id.to_string(),
-        },
-    };
-    let (res,): (ManagementCanisterSchnorrPublicKeyReply,) =
-        ic_cdk::call(mgmt_canister_id(), "schnorr_public_key", (request,))
-            .await
-            .map_err(|e| format!("schnorr_public_key failed {}", e.1))?;
-    Ok(res.public_key)
+/// Validates that the schnorr key name is either "test_key_1" or "key_1"
+pub fn validate_schnorr_key_name(key_name: &str) -> Result<(), String> {
+    match key_name {
+        "test_key_1" | "key_1" => Ok(()),
+        _ => Err(format!(
+            "Invalid schnorr key name '{}'. Must be either 'test_key_1' or 'key_1'",
+            key_name
+        )),
+    }
 }
 
 pub async fn schnorr_sign(
     message: Vec<u8>,
-    derive_path: Vec<u8>,
-    key_id: impl ToString,
+    schnorr_key_name: String,
+    derivation_path: Vec<Vec<u8>>,
     merkle_root: Option<Vec<u8>>,
 ) -> Result<Vec<u8>, String> {
+    validate_schnorr_key_name(&schnorr_key_name)?;
+
     let merkle_root_hash = merkle_root
         .map(|bytes| {
             if bytes.len() == 32 || bytes.is_empty() {
@@ -95,10 +76,10 @@ pub async fn schnorr_sign(
     }));
     let request = ManagementCanisterSignatureRequest {
         message,
-        derivation_path: vec![derive_path],
+        derivation_path,
         key_id: SchnorrKeyId {
             algorithm: SchnorrAlgorithm::Bip340secp256k1,
-            name: key_id.to_string(),
+            name: schnorr_key_name,
         },
         aux,
     };
@@ -115,12 +96,19 @@ pub async fn schnorr_sign(
 
 pub async fn sign_prehash_with_schnorr(
     digest: impl AsRef<[u8; 32]>,
-    key_name: impl ToString,
-    path: Vec<u8>,
+    schnorr_key_name: String,
+    derivation_path: Vec<Vec<u8>>,
 ) -> Result<Vec<u8>, String> {
-    let signature = crate::schnorr::schnorr_sign(digest.as_ref().to_vec(), path, key_name, None)
-        .await
-        .map_err(|e| e.to_string())?;
+    validate_schnorr_key_name(&schnorr_key_name)?;
+
+    let signature = crate::schnorr::schnorr_sign(
+        digest.as_ref().to_vec(),
+        schnorr_key_name,
+        derivation_path,
+        None,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
     Ok(signature)
 }
 
@@ -131,13 +119,20 @@ pub fn tweak_pubkey_with_empty(untweaked: Pubkey) -> Pubkey {
     Pubkey::from_raw([&[0x00], &raw[..]].concat()).expect("tweaked 33bytes; qed")
 }
 
-pub async fn request_schnorr_key(key_name: impl ToString, path: Vec<u8>) -> Result<Pubkey, String> {
+// https://internetcomputer.org/docs/references/t-sigs-how-it-works#key-derivation
+pub async fn request_ree_pool_address(
+    schnorr_key_name: &str,
+    derivation_path: Vec<Vec<u8>>,
+    network: bitcoin::Network,
+) -> Result<(Pubkey, Pubkey, bitcoin::Address), String> {
+    validate_schnorr_key_name(&schnorr_key_name)?;
+
     let arg = SchnorrPublicKeyArgument {
         canister_id: None,
-        derivation_path: vec![path],
+        derivation_path,
         key_id: SchnorrKeyId {
             algorithm: SchnorrAlgorithm::Bip340secp256k1,
-            name: key_name.to_string(),
+            name: schnorr_key_name.to_string(),
         },
     };
     let res = schnorr::schnorr_public_key(arg)
@@ -145,6 +140,12 @@ pub async fn request_schnorr_key(key_name: impl ToString, path: Vec<u8>) -> Resu
         .map_err(|(code, err)| format!("schnorr_public_key failed {code:?} {err:?}"))?;
     let mut raw = res.0.public_key.to_vec();
     raw[0] = 0x00;
-    let pubkey = Pubkey::from_raw(raw).expect("management api error: invalid pubkey");
-    Ok(pubkey)
+    let untweaked_pubkey = Pubkey::from_raw(raw).expect("management api error: invalid pubkey");
+
+    let tweaked_pubkey = tweak_pubkey_with_empty(untweaked_pubkey.clone());
+    let key = bitcoin::key::TweakedPublicKey::dangerous_assume_tweaked(
+        tweaked_pubkey.to_x_only_public_key(),
+    );
+    let addr = bitcoin::Address::p2tr_tweaked(key, network);
+    Ok((untweaked_pubkey, tweaked_pubkey, addr))
 }
