@@ -11,7 +11,7 @@ fn cmp<'a>(mine: &'a Utxo, outpoint: &OutPoint) -> Option<&'a Utxo> {
         .then(|| mine)
 }
 
-pub async fn sign(
+pub async fn ree_pool_sign(
     psbt: &mut Psbt,
     pool_input: &Utxo,
     schnorr_key_name: &str,
