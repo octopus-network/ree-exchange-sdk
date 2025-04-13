@@ -205,5 +205,5 @@ Each `IntentionSet` can contain multiple `Intention` objects, reflecting the use
 - `nonce`: A nonce representing the pool state in the exchange. The Orchestrator will **NOT** validate this field.
 - `pool_utxo_spend`: The UTXO(s) owned by the pool that will be spent in the intention.
 - `pool_utxo_receive`: The UTXO(s) that the pool will receive as part of the intention. These UTXOs should correspond to the outputs of the final Bitcoin transaction.
-- `input_coins`: The coins that will be spent in the intention. These should either come from the inputs of the final Bitcoin transaction or from previously generated `output_coins`.
+- `input_coins`: The coins that will be spent in the intention. These should appear as inputs in the final Bitcoin transaction.
 - `output_coins`: The coins that will be received in the intention. These should appear as outputs in the final Bitcoin transaction.
