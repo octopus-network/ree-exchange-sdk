@@ -7,6 +7,7 @@ use std::str::FromStr;
 pub struct InvokeArgs {
     pub psbt_hex: String,
     pub intention_set: IntentionSet,
+    pub initiator_utxo_proof: Vec<u8>,
 }
 
 /// Invoke status code to be used in the response of invoke function,
