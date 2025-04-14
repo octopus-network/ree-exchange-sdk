@@ -11,7 +11,12 @@ fn cmp<'a>(mine: &'a Utxo, outpoint: &OutPoint) -> Option<&'a Utxo> {
         .then(|| mine)
 }
 
-pub async fn sign(psbt: &mut Psbt, pool_input: &Utxo, path: Vec<u8>) -> Result<(), String> {
+pub async fn ree_pool_sign(
+    psbt: &mut Psbt,
+    pool_input: &Utxo,
+    schnorr_key_name: &str,
+    derivation_path: Vec<Vec<u8>>,
+) -> Result<(), String> {
     let mut cache = SighashCache::new(&psbt.unsigned_tx);
     let mut prevouts = vec![];
     for input in psbt.inputs.iter() {
@@ -37,10 +42,13 @@ pub async fn sign(psbt: &mut Psbt, pool_input: &Utxo, path: Vec<u8>) -> Result<(
                     TapSighashType::Default,
                 )
                 .expect("couldn't construct taproot sighash");
-            let raw_sig =
-                crate::schnorr::sign_prehash_with_schnorr(&sighash, "key_1", path.clone())
-                    .await
-                    .map_err(|e| e.to_string())?;
+            let raw_sig = crate::schnorr::sign_prehash_with_schnorr(
+                &sighash,
+                schnorr_key_name.to_string(),
+                derivation_path.clone(),
+            )
+            .await
+            .map_err(|e| e.to_string())?;
             let inner_sig = bitcoin::secp256k1::schnorr::Signature::from_slice(&raw_sig)
                 .expect("assert: chain-key schnorr signature is 64-bytes format");
             let signature = bitcoin::taproot::Signature {
