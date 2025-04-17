@@ -6,14 +6,13 @@ use bitcoin::{
     OutPoint, TapSighashType, Witness,
 };
 
-fn cmp<'a>(mine: &'a Utxo, outpoint: &OutPoint) -> Option<&'a Utxo> {
-    (Into::<bitcoin::Txid>::into(mine.txid) == outpoint.txid && mine.vout == outpoint.vout)
-        .then(|| mine)
+fn cmp<'a>(mine: &'a Utxo, outpoint: &OutPoint) -> bool {
+    Into::<bitcoin::Txid>::into(mine.txid) == outpoint.txid && mine.vout == outpoint.vout
 }
 
 pub async fn ree_pool_sign(
     psbt: &mut Psbt,
-    pool_input: &Utxo,
+    pool_inputs: Vec<&Utxo>,
     schnorr_key_name: &str,
     derivation_path: Vec<Vec<u8>>,
 ) -> Result<(), String> {
@@ -29,7 +28,7 @@ pub async fn ree_pool_sign(
     }
     for (i, input) in psbt.unsigned_tx.input.iter().enumerate() {
         let outpoint = &input.previous_output;
-        if let Some(_) = cmp(pool_input, outpoint) {
+        if let Some(_) = pool_inputs.iter().find(|input| cmp(input, outpoint)) {
             (i < psbt.inputs.len()).then(|| ()).ok_or(format!(
                 "Input index {i} exceeds available inputs ({})",
                 psbt.inputs.len()
