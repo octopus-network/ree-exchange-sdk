@@ -22,12 +22,12 @@ pub enum InvokeStatus {
     _200,
     /// Transaction fee too low
     _301(String),
-    /// Another invoke is in progress
-    _399,
     /// Invalid psbt_hex
     _401(String),
     /// Invalid psbt data
     _402(String),
+    /// Input UTXO is not confirmed
+    _403(String),
     /// Input UTXO already spent
     _404(String),
     /// Invalid rune balance in psbt
@@ -84,12 +84,9 @@ impl core::fmt::Display for InvokeStatus {
             InvokeStatus::_301(msg) => {
                 write!(f, "301 Transaction fee too low: {}. Maybe try again.", msg)
             }
-            InvokeStatus::_399 => write!(
-                f,
-                "399 Another invoke is in progress. Please try again later."
-            ),
             InvokeStatus::_401(msg) => write!(f, "401 Invalid psbt hex: {}", msg),
             InvokeStatus::_402(msg) => write!(f, "402 Invalid psbt data: {}", msg),
+            InvokeStatus::_403(msg) => write!(f, "403 Input UTXO is not confirmed: {}", msg),
             InvokeStatus::_404(msg) => write!(f, "404 Input UTXO already spent: {}", msg),
             InvokeStatus::_406(msg) => write!(f, "406 Invalid rune balance in psbt: {}", msg),
             InvokeStatus::_407 => write!(f, "407 Missing intentions."),
