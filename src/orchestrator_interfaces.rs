@@ -10,6 +10,8 @@ pub struct InvokeArgs {
     pub initiator_utxo_proof: Vec<u8>,
 }
 
+pub type InvokeStatusSubCode = u8;
+
 /// Invoke status code to be used in the response of invoke function,
 /// will be formatted as a string before returning to the caller
 ///
@@ -19,59 +21,33 @@ pub struct InvokeArgs {
 /// 7xx - Exchange errors
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub enum InvokeStatus {
-    /// Success
     _200,
-    /// Transaction fee too low
-    _301(String),
-    /// Another invoke is in progress
-    _399,
-    /// Invalid psbt_hex
-    _401(String),
-    /// Invalid psbt data
-    _402(String),
-    /// Input UTXO already spent
-    _404(String),
-    /// Invalid rune balance in psbt
-    _406(String),
-    /// Missing intentions
+    _301,
+    _401(InvokeStatusSubCode),
+    _402(InvokeStatusSubCode),
+    _403,
+    _404,
+    _405,
+    _406,
     _407,
-    /// Too many intentions
     _408,
-    /// Invalid intention
-    _409 {
-        intention_index: usize,
-        error: String,
-    },
-    /// Intention set mismatched with the psbt
-    _410(String),
-    /// Invoke is paused
+    _409(InvokeStatusSubCode),
+    _410(InvokeStatusSubCode),
+    _411,
+    _412,
+    _413(InvokeStatusSubCode),
+    _414(InvokeStatusSubCode),
+    _415(InvokeStatusSubCode),
     _501,
-    /// Orchestrator internal error
-    _502(String),
-    /// Rune indexer not reachable
+    _502(InvokeStatusSubCode),
     _503(String),
-    /// Rune indexer returned error
     _504(String),
-    /// Invalid final tx
-    _505(String),
-    /// Invoke failed due to exchange error
+    _505(InvokeStatusSubCode),
     _599 { txid: String, inner_error: String },
-    /// Exchange not reachable
-    _701 {
-        intention_index: usize,
-        error: String,
-    },
-    /// Exchange returned error
-    _702 {
-        intention_index: usize,
-        error: String,
-    },
-    /// Exchange returned invalid psbt
-    _703 {
-        intention_index: usize,
-        returned_psbt_hex: String,
-        error: String,
-    },
+    _701 { exchange_id: String, error: String },
+    _702 { exchange_id: String, error: String },
+    _703(InvokeStatusSubCode),
+    _704(InvokeStatusSubCode),
 }
 
 /// If successful, returns the txid of the transaction broadcasted,
@@ -81,74 +57,39 @@ pub type InvokeResponse = Result<String, String>;
 impl core::fmt::Display for InvokeStatus {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            InvokeStatus::_200 => write!(f, "200 Success."),
-            InvokeStatus::_301(msg) => {
-                write!(f, "301 Transaction fee too low: {}. Maybe try again.", msg)
+            InvokeStatus::_200 => write!(f, "200"),
+            InvokeStatus::_301 => write!(f, "301"),
+            InvokeStatus::_401(sub_code) => write!(f, "401:{:03}", sub_code),
+            InvokeStatus::_402(sub_code) => write!(f, "402:{:03}", sub_code),
+            InvokeStatus::_403 => write!(f, "403"),
+            InvokeStatus::_404 => write!(f, "404"),
+            InvokeStatus::_405 => write!(f, "405"),
+            InvokeStatus::_406 => write!(f, "406"),
+            InvokeStatus::_407 => write!(f, "407"),
+            InvokeStatus::_408 => write!(f, "408"),
+            InvokeStatus::_409(sub_code) => write!(f, "409:{:03}", sub_code),
+            InvokeStatus::_410(sub_code) => write!(f, "410:{:03}", sub_code),
+            InvokeStatus::_411 => write!(f, "411"),
+            InvokeStatus::_412 => write!(f, "412"),
+            InvokeStatus::_413(sub_code) => write!(f, "413:{:03}", sub_code),
+            InvokeStatus::_414(sub_code) => write!(f, "414:{:03}", sub_code),
+            InvokeStatus::_415(sub_code) => write!(f, "415:{:03}", sub_code),
+            InvokeStatus::_501 => write!(f, "501"),
+            InvokeStatus::_502(sub_code) => write!(f, "502:{:03}", sub_code),
+            InvokeStatus::_503(msg) => write!(f, "503: {}", msg),
+            InvokeStatus::_504(msg) => write!(f, "504: {}", msg),
+            InvokeStatus::_505(sub_code) => write!(f, "505:{:03}", sub_code),
+            InvokeStatus::_599 { txid, inner_error } => {
+                write!(f, "599: Txid: {}, Inner error: {}", txid, inner_error)
             }
-            InvokeStatus::_399 => write!(
-                f,
-                "399 Another invoke is in progress. Please try again later."
-            ),
-            InvokeStatus::_401(msg) => write!(f, "401 Invalid psbt hex: {}", msg),
-            InvokeStatus::_402(msg) => write!(f, "402 Invalid psbt data: {}", msg),
-            InvokeStatus::_404(msg) => write!(f, "404 Input UTXO already spent: {}", msg),
-            InvokeStatus::_406(msg) => write!(f, "406 Invalid rune balance in psbt: {}", msg),
-            InvokeStatus::_407 => write!(f, "407 Missing intentions."),
-            InvokeStatus::_408 => write!(f, "408 Too many intentions."),
-            InvokeStatus::_409 {
-                intention_index,
-                error,
-            } => {
-                write!(
-                    f,
-                    "409 Invalid intention: Intention index: {}, error: {}",
-                    intention_index, error
-                )
+            InvokeStatus::_701 { exchange_id, error } => {
+                write!(f, "701: Exchange id: {}, error: {}", exchange_id, error)
             }
-            InvokeStatus::_410(msg) => {
-                write!(f, "410 Intention set mismatched with psbt: {}", msg)
+            InvokeStatus::_702 { exchange_id, error } => {
+                write!(f, "702: Exchange id: {}, error: {}", exchange_id, error)
             }
-            InvokeStatus::_501 => write!(f, "501 Invoke is paused. Please contact support."),
-            InvokeStatus::_502(msg) => write!(f, "502 Orchestrator internal error: {}", msg),
-            InvokeStatus::_503(msg) => write!(f, "503 Rune indexer not reachable: {}", msg),
-            InvokeStatus::_504(msg) => write!(f, "504 Rune indexer returned error: {}", msg),
-            InvokeStatus::_505(msg) => write!(f, "505 Invalid final tx: {}", msg),
-            InvokeStatus::_599 { txid, inner_error } => write!(
-                f,
-                "599 Invoke failed due to exchange error. Txid: {}, Inner error: {}",
-                txid, inner_error
-            ),
-            InvokeStatus::_701 {
-                intention_index,
-                error,
-            } => {
-                write!(
-                    f,
-                    "701 Exchange not reachable: Intention index: {}, error: {}",
-                    intention_index, error
-                )
-            }
-            InvokeStatus::_702 {
-                intention_index,
-                error,
-            } => {
-                write!(
-                    f,
-                    "702 Exchange returned error: Intention index: {}, error: {}",
-                    intention_index, error
-                )
-            }
-            InvokeStatus::_703 {
-                intention_index,
-                returned_psbt_hex,
-                error,
-            } => {
-                write!(
-                    f,
-                    "703 Exchange returned invalid psbt: Intention index: {}, returned psbt hex: {}, error: {}",
-                    intention_index, returned_psbt_hex, error
-                )
-            }
+            InvokeStatus::_703(sub_code) => write!(f, "703:{:03}", sub_code),
+            InvokeStatus::_704(sub_code) => write!(f, "704:{:03}", sub_code),
         }
     }
 }
