@@ -25,8 +25,8 @@ pub struct Intention {
     pub action_params: String,
     pub pool_address: String,
     pub nonce: u64,
-    pub pool_utxo_spend: Vec<String>,
-    pub pool_utxo_receive: Vec<Utxo>,
+    pub pool_utxo_spent: Vec<String>,
+    pub pool_utxo_received: Vec<Utxo>,
     pub input_coins: Vec<InputCoin>,
     pub output_coins: Vec<OutputCoin>,
 }

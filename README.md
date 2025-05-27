@@ -166,8 +166,8 @@ pub struct Intention {
     pub action_params: String,
     pub pool_address: String,
     pub nonce: u64,
-    pub pool_utxo_spend: Vec<String>,
-    pub pool_utxo_receive: Vec<String>,
+    pub pool_utxo_spent: Vec<String>,
+    pub pool_utxo_received: Vec<String>,
     pub input_coins: Vec<InputCoin>,
     pub output_coins: Vec<OutputCoin>,
 }
@@ -203,7 +203,7 @@ Each `IntentionSet` can contain multiple `Intention` objects, reflecting the use
 - `action_params`: Parameters for the action, specific to the exchange. The Orchestrator will **NOT** validate this field.
 - `pool_address`: The address of the exchange pool where the intention will be executed. The Orchestrator will validate this field.
 - `nonce`: A nonce representing the pool state in the exchange. The Orchestrator will **NOT** validate this field.
-- `pool_utxo_spend`: The UTXO(s) owned by the pool that will be spent in the intention.
-- `pool_utxo_receive`: The UTXO(s) that the pool will receive as part of the intention. These UTXOs should correspond to the outputs of the final Bitcoin transaction.
+- `pool_utxo_spent`: The UTXO(s) owned by the pool that will be spent in the intention.
+- `pool_utxo_received`: The UTXO(s) that the pool will receive as part of the intention. These UTXOs should correspond to the outputs of the final Bitcoin transaction.
 - `input_coins`: The coins that will be spent in the intention. These should appear as inputs in the final Bitcoin transaction.
 - `output_coins`: The coins that will be received in the intention. These should appear as outputs in the final Bitcoin transaction.

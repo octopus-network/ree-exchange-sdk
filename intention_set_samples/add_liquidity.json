@@ -6,8 +6,8 @@
             "action": "add_liquidity",
             "pool_address": "bc1pxtmh763568jd8pz9m8wekt2yrqyntqv2wk465mgpzlr9f2aq2vqs52l0hq",
             "nonce": 1,
-            "pool_utxo_spend": [],
-            "pool_utxo_receive": [],
+            "pool_utxo_spent": [],
+            "pool_utxo_received": [],
             "input_coins": [
                 {
                     "from": "bc1q8anrrgczju8zn02ww06slsfh9grm07de7r9e3k",

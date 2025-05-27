@@ -6,8 +6,8 @@
             "action": "withdraw_liquidity",
             "pool_address": "bc1pu3pv54uxfps00a8ydle67fd3rktz090l07lyg7wadurq4h0lpjhqnet990",
             "nonce": 11,
-            "pool_utxo_spend": [],
-            "pool_utxo_receive": [],
+            "pool_utxo_spent": [],
+            "pool_utxo_received": [],
             "input_coins": [],
             "output_coins": [
                 {

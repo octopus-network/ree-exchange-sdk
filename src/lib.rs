@@ -83,8 +83,8 @@ mod tests {
                 pool_address: "bc1pxtmh763568jd8pz9m8wekt2yrqyntqv2wk465mgpzlr9f2aq2vqs52l0hq"
                     .to_string(),
                 nonce: 1,
-                pool_utxo_spend: vec![],
-                pool_utxo_receive: vec![],
+                pool_utxo_spent: vec![],
+                pool_utxo_received: vec![],
                 input_coins: vec![
                     InputCoin {
                         from: "bc1q8anrrgczju8zn02ww06slsfh9grm07de7r9e3k".to_string(),
@@ -121,11 +121,11 @@ mod tests {
                 pool_address: "bc1pu3pv54uxfps00a8ydle67fd3rktz090l07lyg7wadurq4h0lpjhqnet990"
                     .to_string(),
                 nonce: 11,
-                pool_utxo_spend: vec![
+                pool_utxo_spent: vec![
                     "71c9aa9a015e0fcd5cbd6354fbd61c290f9c0a77cecb920df1f0917e7ddc75b7:0"
                         .to_string(),
                 ],
-                pool_utxo_receive: vec![],
+                pool_utxo_received: vec![],
                 input_coins: vec![],
                 output_coins: vec![
                     OutputCoin {
@@ -163,11 +163,11 @@ mod tests {
                 pool_address: "bc1ptnxf8aal3apeg8r4zysr6k2mhadg833se2dm4nssl7drjlqdh2jqa4tk3p"
                     .to_string(),
                 nonce: 5,
-                pool_utxo_spend: vec![
+                pool_utxo_spent: vec![
                     "17616a9d2258c41bea2175e64ecc2e5fc45ae18be5c9003e058cb0bb85301fd8:0"
                         .to_string(),
                 ],
-                pool_utxo_receive: vec![],
+                pool_utxo_received: vec![],
                 input_coins: vec![InputCoin {
                     from: "bc1plvgrpk6mxwyppvqa5j275ujatn8qgs2dcm8m3r2w7sfkn395x6us9l5qdj"
                         .to_string(),
@@ -205,11 +205,11 @@ mod tests {
                     pool_address: "bc1ptnxf8aal3apeg8r4zysr6k2mhadg833se2dm4nssl7drjlqdh2jqa4tk3p"
                         .to_string(),
                     nonce: 5,
-                    pool_utxo_spend: vec![
+                    pool_utxo_spent: vec![
                         "17616a9d2258c41bea2175e64ecc2e5fc45ae18be5c9003e058cb0bb85301fd8:0"
                             .to_string(),
                     ],
-                    pool_utxo_receive: vec![],
+                    pool_utxo_received: vec![],
                     input_coins: vec![InputCoin {
                         from: "bc1plvgrpk6mxwyppvqa5j275ujatn8qgs2dcm8m3r2w7sfkn395x6us9l5qdj"
                             .to_string(),
@@ -234,11 +234,11 @@ mod tests {
                     pool_address: "bc1pu3pv54uxfps00a8ydle67fd3rktz090l07lyg7wadurq4h0lpjhqnet990"
                         .to_string(),
                     nonce: 9,
-                    pool_utxo_spend: vec![
+                    pool_utxo_spent: vec![
                         "9c3590a30d7b5d27f264a295aec6ed15c83618c152c89b28b81a460fcbb66514:1"
                             .to_string(),
                     ],
-                    pool_utxo_receive: vec![],
+                    pool_utxo_received: vec![],
                     input_coins: vec![InputCoin {
                         from: "bc1pu3pv54uxfps00a8ydle67fd3rktz090l07lyg7wadurq4h0lpjhqnet990"
                             .to_string(),
