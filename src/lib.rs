@@ -31,14 +31,14 @@ pub struct CoinBalance {
 pub struct Utxo {
     pub txid: Txid,
     pub vout: u32,
-    pub maybe_rune: Option<CoinBalance>,
+    pub coins: Vec<CoinBalance>,
     pub sats: u64,
 }
 
 impl Utxo {
     pub fn try_from(
         outpoint: impl AsRef<str>,
-        maybe_rune: Option<CoinBalance>,
+        coins: Vec<CoinBalance>,
         sats: u64,
     ) -> Result<Self, String> {
         let parts = outpoint.as_ref().split(':').collect::<Vec<_>>();
@@ -55,17 +55,13 @@ impl Utxo {
         Ok(Utxo {
             txid,
             vout,
-            maybe_rune,
+            coins,
             sats,
         })
     }
 
     pub fn outpoint(&self) -> String {
         format!("{}:{}", self.txid, self.vout)
-    }
-
-    pub fn rune_amount(&self) -> u128 {
-        self.maybe_rune.map(|r| r.value).unwrap_or_default()
     }
 }
 
