@@ -3,7 +3,7 @@ use candid::CandidType;
 use ic_stable_structures::{storable::Bound, Storable};
 use serde::{Deserialize, Serialize};
 
-use crate::{CoinBalance, IntentionSetForExchange, Pubkey, Txid, Utxo};
+use crate::{CoinBalance, IntentionSet, Pubkey, Txid, Utxo};
 
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct PoolBasic {
@@ -51,7 +51,7 @@ pub type GetMinimalTxValueResponse = u64;
 pub struct ExecuteTxArgs {
     pub psbt_hex: String,
     pub txid: Txid,
-    pub intention_set: IntentionSetForExchange,
+    pub intention_set: IntentionSet,
     pub intention_index: u32,
     pub zero_confirmed_tx_queue_length: u32,
 }
