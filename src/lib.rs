@@ -28,9 +28,7 @@ pub struct CoinBalance {
 }
 
 #[derive(CandidType, Eq, PartialEq, Clone, Debug, Deserialize, Serialize)]
-pub struct CoinBalances {
-    pub coins: Vec<CoinBalance>,
-}
+pub struct CoinBalances(Vec<CoinBalance>);
 
 #[derive(CandidType, Eq, PartialEq, Clone, Debug, Deserialize, Serialize)]
 pub struct Utxo {
@@ -72,12 +70,12 @@ impl Utxo {
 
 impl CoinBalances {
     pub fn new() -> Self {
-        Self { coins: vec![] }
+        Self(vec![])
     }
     //
     pub fn add_coin(&mut self, coin: &CoinBalance) {
         let mut found = false;
-        for existing_coin in &mut self.coins {
+        for existing_coin in &mut self.0 {
             if existing_coin.id == coin.id {
                 existing_coin.value += coin.value;
                 found = true;
@@ -85,12 +83,12 @@ impl CoinBalances {
             }
         }
         if !found {
-            self.coins.push(coin.clone());
+            self.0.push(coin.clone());
         }
     }
     //
     pub fn value_of(&self, coin_id: &CoinId) -> u128 {
-        for coin in &self.coins {
+        for coin in &self.0 {
             if coin.id == *coin_id {
                 return coin.value;
             }
@@ -99,7 +97,7 @@ impl CoinBalances {
     }
     //
     pub fn add_coins(&mut self, coins: &CoinBalances) {
-        for coin in &coins.coins {
+        for coin in &coins.0 {
             self.add_coin(coin);
         }
     }
