@@ -73,6 +73,10 @@ impl CoinBalances {
         Self(vec![])
     }
     //
+    pub fn iter(&self) -> impl Iterator<Item = &CoinBalance> {
+        self.0.iter()
+    }
+    //
     pub fn add_coin(&mut self, coin: &CoinBalance) {
         let mut found = false;
         for existing_coin in &mut self.0 {
