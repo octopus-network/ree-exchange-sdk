@@ -28,17 +28,22 @@ pub struct CoinBalance {
 }
 
 #[derive(CandidType, Eq, PartialEq, Clone, Debug, Deserialize, Serialize)]
+pub struct CoinBalances {
+    pub coins: Vec<CoinBalance>,
+}
+
+#[derive(CandidType, Eq, PartialEq, Clone, Debug, Deserialize, Serialize)]
 pub struct Utxo {
     pub txid: Txid,
     pub vout: u32,
-    pub coins: Vec<CoinBalance>,
+    pub coins: CoinBalances,
     pub sats: u64,
 }
 
 impl Utxo {
     pub fn try_from(
         outpoint: impl AsRef<str>,
-        coins: Vec<CoinBalance>,
+        coins: CoinBalances,
         sats: u64,
     ) -> Result<Self, String> {
         let parts = outpoint.as_ref().split(':').collect::<Vec<_>>();
@@ -62,6 +67,41 @@ impl Utxo {
 
     pub fn outpoint(&self) -> String {
         format!("{}:{}", self.txid, self.vout)
+    }
+}
+
+impl CoinBalances {
+    pub fn new() -> Self {
+        Self { coins: vec![] }
+    }
+    //
+    pub fn add_coin(&mut self, coin: &CoinBalance) {
+        let mut found = false;
+        for existing_coin in &mut self.coins {
+            if existing_coin.id == coin.id {
+                existing_coin.value += coin.value;
+                found = true;
+                break;
+            }
+        }
+        if !found {
+            self.coins.push(coin.clone());
+        }
+    }
+    //
+    pub fn value_of(&self, coin_id: &CoinId) -> u128 {
+        for coin in &self.coins {
+            if coin.id == *coin_id {
+                return coin.value;
+            }
+        }
+        0
+    }
+    //
+    pub fn add_coins(&mut self, coins: &CoinBalances) {
+        for coin in &coins.coins {
+            self.add_coin(coin);
+        }
     }
 }
 
