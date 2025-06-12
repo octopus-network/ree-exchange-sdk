@@ -87,7 +87,7 @@ impl core::fmt::Display for InvokeStatus {
             InvokeStatus::_503(msg) => write!(f, "503: {}", msg),
             InvokeStatus::_504(msg) => write!(f, "504: {}", msg),
             InvokeStatus::_505(sub_code) => write!(f, "505:{:03}", sub_code),
-            InvokeStatus::_506(msg) => write!(f, "504: {}", msg),
+            InvokeStatus::_506(msg) => write!(f, "506: {}", msg),
             InvokeStatus::_599 { txid, inner_error } => {
                 write!(f, "599: Txid: {}, Inner error: {}", txid, inner_error)
             }
