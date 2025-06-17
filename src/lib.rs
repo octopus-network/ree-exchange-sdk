@@ -91,6 +91,23 @@ impl CoinBalances {
         }
     }
     //
+    pub fn subtract_coin(&mut self, coin: &CoinBalance) -> bool {
+        for i in 0..self.0.len() {
+            if self.0[i].id == coin.id {
+                if self.0[i].value >= coin.value {
+                    self.0[i].value -= coin.value;
+                    if self.0[i].value == 0 {
+                        self.0.remove(i);
+                    }
+                    return true;
+                } else {
+                    return false; // Not enough value to remove
+                }
+            }
+        }
+        false // Coin not found
+    }
+    //
     pub fn value_of(&self, coin_id: &CoinId) -> u128 {
         for coin in &self.0 {
             if coin.id == *coin_id {
@@ -304,5 +321,53 @@ mod tests {
             "Runes swap runes sample instruction: {}\n",
             serde_json::to_string(&instruction_set_4).unwrap()
         );
+    }
+
+    #[test]
+    /// Test the CoinBalances struct
+    fn test_coin_balances() {
+        let mut balances = CoinBalances::new();
+        let coin1 = CoinBalance {
+            id: CoinId::btc(),
+            value: 1000,
+        };
+        let coin2 = CoinBalance {
+            id: CoinId::from_str("840106:129").unwrap(),
+            value: 500,
+        };
+
+        balances.add_coin(&coin1);
+        balances.add_coin(&coin2);
+
+        assert_eq!(balances.value_of(&CoinId::btc()), 1000);
+        assert_eq!(
+            balances.value_of(&CoinId::from_str("840106:129").unwrap()),
+            500
+        );
+
+        let coin3 = CoinBalance {
+            id: CoinId::btc(),
+            value: 200,
+        };
+        balances.add_coin(&coin3);
+        assert_eq!(balances.value_of(&CoinId::btc()), 1200);
+
+        let coin4 = CoinBalance {
+            id: CoinId::from_str("840106:129").unwrap(),
+            value: 600,
+        };
+        assert!(!balances.subtract_coin(&coin4));
+
+        let coin4 = CoinBalance {
+            id: CoinId::from_str("840106:129").unwrap(),
+            value: 500,
+        };
+        assert!(balances.subtract_coin(&coin4));
+        assert_eq!(
+            balances.value_of(&CoinId::from_str("840106:129").unwrap()),
+            0
+        );
+
+        println!("Coin Balances: {:?}", balances);
     }
 }
