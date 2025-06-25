@@ -36,16 +36,6 @@ pub struct GetPoolInfoArgs {
 /// The response for the `get_pool_info` function.
 pub type GetPoolInfoResponse = Option<PoolInfo>;
 
-/// The parameters for the `get_minimal_tx_value` function.
-#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct GetMinimalTxValueArgs {
-    pub pool_address: String,
-    pub zero_confirmed_tx_queue_length: u32,
-}
-
-/// The response for the `get_minimal_tx_value` function.
-pub type GetMinimalTxValueResponse = u64;
-
 /// The parameters for the `execute_tx` function.
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct ExecuteTxArgs {
