@@ -10,7 +10,6 @@ In REE, every exchange must implement the following six functions:
 |-------------------|------------------------|----------------------|-------------|
 | `get_pool_list`   | -       | `Vec<PoolBasic>`  | See [Get Pool List](#get-pool-list). |
 | `get_pool_info`   | `GetPoolInfoArgs`       | `Option<PoolInfo>`   | See [Get Pool Info](#get-pool-info). |
-| `get_minimal_tx_value` | `GetMinimalTxValueArgs` | `u64` | See [Get Minimal Tx Value](#get-minimal-tx-value). |
 | `execute_tx`      | `ExecuteTxArgs`         | `Result<String, String>` | See [Execute Tx](#execute-tx). |
 | `rollback_tx`     | `RollbackTxArgs`        | `Result<(), String>`  | See [Rollback Tx](#rollback-tx). |
 | `new_block`     | `NewBlockArgs`        | `Result<(), String>`  | See [New Block](#new-block). |
@@ -20,7 +19,7 @@ Implementation Notes:
 - The REE Orchestrator calls these functions to interact with exchanges **WITHOUT** attaching any cycles.
 - Every exchange **MUST** implement these functions **exactly as defined** in this repository. Failure to do so will prevent the exchange from being registered in the REE Orchestrator, or may cause a registered exchange to be halted.
 - These functions may be implemented as `async` or synchronous.
-- The `get_pool_list`, `get_pool_info` and `get_minimal_tx_value` may be declared with `#[ic_cdk::query]` or `#[ic_cdk::update]` in the exchange canister. The other functions **MUST** be declared with `#[ic_cdk::update]`.
+- The `get_pool_list` and `get_pool_info` may be declared with `#[ic_cdk::query]` or `#[ic_cdk::update]` in the exchange canister. The other functions **MUST** be declared with `#[ic_cdk::update]`.
 - All parameters and return types are defined in the `ree_types::exchange_interfaces` module.
 
 ### Get Pool List
@@ -63,21 +62,6 @@ pub struct PoolInfo {
     pub attributes: String,
 }
 ```
-
-### Get Minimal Tx Value
-
-Returns the minimum transaction value that can be accepted by the exchange, considering the zero-confirmation transaction queue length for a specific pool.
-
-Parameters:
-
-```rust
-pub struct GetMinimalTxValueArgs {
-    pub pool_address: String,
-    pub zero_confirmed_tx_queue_length: u32,
-}
-```
-
-Return Type: `u64`, the minimal transaction value in `sats`.
 
 ### Execute Tx
 
@@ -148,6 +132,7 @@ The `invoke` function in the REE Orchestrator serves as the main entry point for
 pub struct InvokeArgs {
     pub psbt_hex: String,
     pub intention_set: IntentionSet,
+    pub initiator_utxo_proof: Vec<u8>,
 }
 ```
 
@@ -203,7 +188,7 @@ Each `IntentionSet` can contain multiple `Intention` objects, reflecting the use
 - `action_params`: Parameters for the action, specific to the exchange. The Orchestrator will **NOT** validate this field.
 - `pool_address`: The address of the exchange pool where the intention will be executed. The Orchestrator will validate this field.
 - `nonce`: A nonce representing the pool state in the exchange. The Orchestrator will **NOT** validate this field.
-- `pool_utxo_spent`: The UTXO(s) owned by the pool that will be spent in the intention.
-- `pool_utxo_received`: The UTXO(s) that the pool will receive as part of the intention. These UTXOs should correspond to the outputs of the final Bitcoin transaction.
+- `pool_utxo_spent`: The UTXO(s) owned by the pool that will be spent in the intention. **The clients of REE can leave this field empty as the Orchestrator will fill it in with the UTXO(s) that the pool will spend in the final Bitcoin transaction.**
+- `pool_utxo_received`: The UTXO(s) that the pool will receive as part of the intention. These UTXOs should correspond to the outputs of the final Bitcoin transaction. **The clients of REE can leave this field empty as the Orchestrator will fill it in with the UTXO(s) that the pool will receive in the final Bitcoin transaction.**
 - `input_coins`: The coins that will be spent in the intention. These should appear as inputs in the final Bitcoin transaction.
 - `output_coins`: The coins that will be received in the intention. These should appear as outputs in the final Bitcoin transaction.
