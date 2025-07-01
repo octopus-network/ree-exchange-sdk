@@ -51,7 +51,7 @@ pub enum InvokeStatus {
     _504(String),
     _505(InvokeStatusSubCode),
     _506(String),
-    _599 { txid: String, inner_error: String },
+    _599(String),
     _701 { exchange_id: String, error: String },
     _702 { exchange_id: String, error: String },
     _703(InvokeStatusSubCode),
@@ -88,8 +88,8 @@ impl core::fmt::Display for InvokeStatus {
             InvokeStatus::_504(msg) => write!(f, "504: {}", msg),
             InvokeStatus::_505(sub_code) => write!(f, "505:{:03}", sub_code),
             InvokeStatus::_506(msg) => write!(f, "506: {}", msg),
-            InvokeStatus::_599 { txid, inner_error } => {
-                write!(f, "599: Txid: {}, Inner error: {}", txid, inner_error)
+            InvokeStatus::_599(txid) => {
+                write!(f, "599: Txid: {}", txid)
             }
             InvokeStatus::_701 { exchange_id, error } => {
                 write!(f, "701: Exchange id: {}, error: {}", exchange_id, error)
