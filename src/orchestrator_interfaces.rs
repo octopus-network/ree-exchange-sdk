@@ -109,14 +109,14 @@ pub const ORCHESTRATOR_CANISTER: &'static str = "kqs64-paaaa-aaaar-qamza-cai";
 
 pub fn ensure_testnet4_orchestrator() -> Result<(), String> {
     let o = Principal::from_str(TESTNET4_ORCHESTRATOR_CANISTER).expect("is valid principal; qed");
-    (o == ic_cdk::caller())
+    (o == ic_cdk::api::msg_caller())
         .then(|| ())
         .ok_or("Access denied".to_string())
 }
 
 pub fn ensure_orchestrator() -> Result<(), String> {
     let o = Principal::from_str(ORCHESTRATOR_CANISTER).expect("is valid principal; qed");
-    (o == ic_cdk::caller())
+    (o == ic_cdk::api::msg_caller())
         .then(|| ())
         .ok_or("Access denied".to_string())
 }
