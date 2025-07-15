@@ -2,6 +2,15 @@
 
 This repository contains the essential data type definitions for REE (Runes Exchange Environment).
 
+## Versions
+
+This crate depends the `ic-cdk` crate, here are the versions of `ic-cdk` that this crate is compatible with:
+
+| ree-types Version | ic-cdk Version |
+|-------------------|----------------|
+| 0.6.x             | 0.18.x         |
+| 0.5.x             | 0.17.x         |
+
 ## Exchange Interfaces
 
 In REE, every exchange must implement the following six functions:
