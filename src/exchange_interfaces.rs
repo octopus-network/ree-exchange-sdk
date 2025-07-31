@@ -56,6 +56,7 @@ pub type ExecuteTxResponse = Result<String, String>;
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct RollbackTxArgs {
     pub txid: Txid,
+    pub reason_code: String,
 }
 
 /// The response for the `rollback_tx` function.

@@ -102,8 +102,20 @@ Parameters:
 ```rust
 pub struct RollbackTxArgs {
     pub txid: Txid,
+    pub reason_code: String
 }
 ```
+
+Where the `reason_code` will be one of the following:
+
+| Rollback Reason Code | Description |
+|---------|---------|
+| 01 | Transaction rejected by Mempool |
+| 02 | Rollback by Orchestrator Admin |
+| 03 | Final Bitcoin transaction is not valid |
+| 04 | An exchange returned error |
+| 05 | An exchange returned invalid PSBT data |
+| 99 | Unknown reason, check Orchestrator logs |
 
 Return Type:
 
