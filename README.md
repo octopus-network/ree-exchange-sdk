@@ -2,6 +2,15 @@
 
 This repository contains the essential data type definitions for REE (Runes Exchange Environment).
 
+## Versions
+
+This crate depends the `ic-cdk` crate, here are the versions of `ic-cdk` that this crate is compatible with:
+
+| ree-types Version | ic-cdk Version |
+|-------------------|----------------|
+| 0.6.x             | 0.18.x         |
+| 0.5.x             | 0.17.x         |
+
 ## Exchange Interfaces
 
 In REE, every exchange must implement the following six functions:
@@ -93,8 +102,20 @@ Parameters:
 ```rust
 pub struct RollbackTxArgs {
     pub txid: Txid,
+    pub reason_code: String
 }
 ```
+
+Where the `reason_code` will be one of the following:
+
+| Rollback Reason Code | Description |
+|---------|---------|
+| 01 | Transaction rejected by Mempool |
+| 02 | Rollback by Orchestrator Admin |
+| 03 | Final Bitcoin transaction is not valid |
+| 04 | An exchange returned error |
+| 05 | An exchange returned invalid PSBT data |
+| 99 | Unknown reason, check Orchestrator logs |
 
 Return Type:
 
