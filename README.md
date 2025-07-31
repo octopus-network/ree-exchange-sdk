@@ -106,16 +106,20 @@ pub struct RollbackTxArgs {
 }
 ```
 
-Where the `reason_code` will be one of the following:
+Where the `reason_code` is one of the following `Rollback Reason Code`:
 
-| Rollback Reason Code | Description |
-|---------|---------|
-| 01 | Transaction rejected by Mempool |
-| 02 | Rollback by Orchestrator Admin |
-| 03 | Final Bitcoin transaction is not valid |
-| 04 | An exchange returned error |
-| 05 | An exchange returned invalid PSBT data |
-| 99 | Unknown reason, check Orchestrator logs |
+| Category | Rollback Reason Code | Description |
+|----------|---------|---------|
+| 00 - 19, Transaction is rejected by Mempool | 00 | Transaction rejected by Mempool: Specific Reason (insufficient fees, etc.) |
+| | 01 | Transaction replaced in Mempool |
+| | 02 | Transaction rejected by Mempool: conflict |
+| | 03 | Transaction rejected by Mempool: replacement failed |
+| | 04 | Transaction rejected by Mempool: input missing or spent |
+| 50 - 59, Transaction is rolled back by Orchestrator policy | 50 | Rollback by Orchestrator: Specific Reason (bug, etc.) |
+| | 51 | Final Bitcoin transaction is not valid |
+| 70 - 79, Transaction is failed because of Exchange error | 70 | An exchange returned error |
+| | 71 | An exchange returned invalid PSBT data |
+| 90 - 99, Other reasons | 99 | Unknown reason, check Orchestrator logs |
 
 Return Type:
 
