@@ -110,7 +110,8 @@ Where the `reason_code` is one of the following `Rollback Reason Code`:
 
 | Category | Rollback Reason Code | Description |
 |----------|---------|---------|
-| 01 - 19, Transaction is rejected by Mempool | 01 | Transaction replaced in Mempool |
+| 00 - 19, Transaction is rejected by Mempool | 00 | Transaction rejected by Mempool: Specific Reason (insufficient fees, etc.) |
+| | 01 | Transaction replaced in Mempool |
 | | 02 | Transaction rejected by Mempool: conflict |
 | | 03 | Transaction rejected by Mempool: replacement failed |
 | | 04 | Transaction rejected by Mempool: input missing or spent |
