@@ -4,13 +4,6 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct RegisterExchangeArgs {
-    pub exchange_id: String,
-    pub exchange_canister: Principal,
-    pub client_canisters: Vec<Principal>,
-}
-
-#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct InvokeArgs {
     pub psbt_hex: String,
     pub intention_set: IntentionSet,
