@@ -1,155 +1,175 @@
-# REE Types
+# REE Exchange Rust SDK
 
-This repository contains the essential data type definitions for REE (Runes Exchange Environment).
+> The Rust SDK for building native Bitcoin dApps on REE(Runes Exchange Environment).
 
-## Versions
+Unlike Ethereum and other smart contract platforms, Bitcoin's scripting language is not Turing complete, making it extremely challenging—if not impossible—to develop complex applications like AMM protocols directly on the Bitcoin network using BTC scripts and the UTXO model.
 
-This crate depends the `ic-cdk` crate, here are the versions of `ic-cdk` that this crate is compatible with:
+REE overcomes this limitation by leveraging the powerful Chain Key technology of the Internet Computer Protocol (ICP) and Bitcoin's Partially Signed Bitcoin Transactions (PSBT) to extend the programmability of Bitcoin's Rune assets.
 
-| ree-types Version | ic-cdk Version |
-|-------------------|----------------|
-| 0.6.x             | 0.18.x         |
-| 0.5.x             | 0.17.x         |
+## Basic procedures of REE exchange
 
-## Exchange Interfaces
+**Constructing the PSBT**: The REE exchange client application (e.g., a wallet or interface) gathers the necessary information from the REE exchange and constructs a PSBT based on the user’s input. The user then signs the PSBT to authorize the transaction.
 
-In REE, every exchange must implement the following six functions:
+**Submitting the PSBT to REE**: The client composes the signed PSBT and essential information retrieved in the previous step and submit to REE Orchestrator. REE will validate the PSBT(including the UTXOs and their RUNE information) and analysis the input-output relations. If all check pass, Orchestrator will forward the request to RichSwap.
 
-| Function Name      | Parameters               | Return Type           | Description |
-|-------------------|------------------------|----------------------|-------------|
-| `get_pool_list`   | -       | `Vec<PoolBasic>`  | See [Get Pool List](#get-pool-list). |
-| `get_pool_info`   | `GetPoolInfoArgs`       | `Option<PoolInfo>`   | See [Get Pool Info](#get-pool-info). |
-| `execute_tx`      | `ExecuteTxArgs`         | `Result<String, String>` | See [Execute Tx](#execute-tx). |
-| `rollback_tx`     | `RollbackTxArgs`        | `Result<(), String>`  | See [Rollback Tx](#rollback-tx). |
-| `new_block`     | `NewBlockArgs`        | `Result<(), String>`  | See [New Block](#new-block). |
+**Exchange's Validation and Signing**: The exchange verifies the transaction details from REE Orchestrator and, if everything is valid, signs the pool’s UTXO using the ICP Chain Key. This step transforms the PSBT into a fully valid Bitcoin transaction.
 
-Implementation Notes:
+**Broadcasting the Transaction**: The finalized transaction is returned to the REE, which broadcasts it to the Bitcoin network for execution.
 
-- The REE Orchestrator calls these functions to interact with exchanges **WITHOUT** attaching any cycles.
-- Every exchange **MUST** implement these functions **exactly as defined** in this repository. Failure to do so will prevent the exchange from being registered in the REE Orchestrator, or may cause a registered exchange to be halted.
-- These functions may be implemented as `async` or synchronous.
-- The `get_pool_list` and `get_pool_info` may be declared with `#[ic_cdk::query]` or `#[ic_cdk::update]` in the exchange canister. The other functions **MUST** be declared with `#[ic_cdk::update]`.
-- All parameters and return types are defined in the `ree_types::exchange_interfaces` module.
+## Quick start
 
-### Get Pool List
+``` rust
+use candid::{CandidType, Deserialize};
+use ic_cdk::{query, update};
+use ic_stable_structures::{Storable, storable::Bound};
+use ree_exchange_sdk::{
+    prelude::*,
+    {CoinBalance, Txid, Utxo},
+};
+use serde::Serialize;
 
-Returns all of pools' basic information maintained by the exchange.
-
-Return Type: `Vec<PoolBasic>`, where `PoolBasic` is defined as:
-
-```rust
-pub struct PoolBasic {
-    pub name: String,
-    pub address: String,
-}
-```
-
-### Get Pool Info
-
-Returns detailed information about a specified pool.
-
-Parameters:
-
-```rust
-pub struct GetPoolInfoArgs {
-    pub pool_address: String,
-}
-```
-
-Return Type: `Option<PoolInfo>`, where `PoolInfo` is defined as:
-
-```rust
-pub struct PoolInfo {
-    pub key: Pubkey,
-    pub key_derivation_path: Vec<Vec<u8>>,
-    pub name: String,
-    pub address: String,
+#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct DummyPoolState {
+    pub txid: Txid,
     pub nonce: u64,
     pub coin_reserved: Vec<CoinBalance>,
     pub btc_reserved: u64,
     pub utxos: Vec<Utxo>,
     pub attributes: String,
 }
-```
 
-### Execute Tx
+impl Storable for DummyPoolState {
+    const BOUND: Bound = Bound::Unbounded;
 
-Executes a transaction in the exchange.
+    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+        let mut bytes = vec![];
+        let _ = ciborium::ser::into_writer(self, &mut bytes);
+        std::borrow::Cow::Owned(bytes)
+    }
 
-Parameters:
+    fn into_bytes(self) -> Vec<u8> {
+        let mut bytes = vec![];
+        let _ = ciborium::ser::into_writer(&self, &mut bytes);
+        bytes
+    }
 
-```rust
-pub struct ExecuteTxArgs {
-    pub psbt_hex: String,
-    pub txid: Txid,
-    pub intention_set: IntentionSet,
-    pub intention_index: u32,
-    pub zero_confirmed_tx_queue_length: u32,
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        let dire = ciborium::de::from_reader(bytes.as_ref()).expect("failed to decode Pool");
+        dire
+    }
+}
+
+impl StateView for DummyPoolState {
+    fn inspect_state(&self) -> StateInfo {
+        StateInfo {
+            txid: self.txid,
+            nonce: self.nonce,
+            coin_reserved: self.coin_reserved.clone(),
+            btc_reserved: self.btc_reserved,
+            utxos: self.utxos.clone(),
+            attributes: "{}".to_string(),
+        }
+    }
+}
+
+#[exchange]
+pub mod exchange {
+    use super::*;
+
+    #[pools]
+    pub struct DummyPools;
+
+    impl Pools for DummyPools {
+        type State = DummyPoolState;
+
+        const POOL_MEMORY: u8 = 102;
+
+        const BLOCK_MEMORY: u8 = 100;
+
+        const TRANSACTION_MEMORY: u8 = 101;
+
+        fn network() -> Network {
+            Network::Testnet4
+        }
+
+        // This is optional
+        fn finalize_threshold() -> u32 {
+            60
+        }
+    }
+
+    /// This is optional
+    #[hook]
+    impl Hook for DummyPools {
+        /// This function is called when a new block is received, before any processing.
+        fn on_block_received(_args: NewBlockInfo) {}
+
+        /// This function is called when a transaction is dropped from the mempool.
+        fn on_state_reverted(_address: String, _txid: Txid) {}
+
+        /// This function is called when a transaction is confirmed in a block.
+        fn on_state_confirmed(_address: String, _txid: Txid, _block: Block) {}
+
+        /// This function is called when a transaction reaches the finalize threshold.
+        fn on_state_finalized(_address: String, _txid: Txid, _block: Block) {}
+
+        /// This function is called after a new block is processed.
+        fn on_block_processed(_args: NewBlockInfo) {}
+    }
+
+    #[update]
+    pub fn new_pool(args: Metadata) {
+        let pool = Pool::new(args.clone());
+        DummyPools::insert(pool.clone());
+        let loaded = DummyPools::get(&args.address);
+        assert_eq!(loaded, Some(pool), "Pool not loaded correctly");
+        let (addr, p) = DummyPools::iter().next().unwrap();
+        assert_eq!(addr, args.address, "Pool address mismatch");
+        assert_eq!(Some(p), loaded, "Pool data mismatch");
+        DummyPools::remove(&args.address);
+        let loaded = DummyPools::get(&args.address);
+        assert!(loaded.is_none(), "Pool not removed correctly");
+    }
+
+    #[query]
+    pub fn pre_swap(addr: String) -> Option<StateInfo> {
+        DummyPools::get(&addr).and_then(|pool| {
+            pool.states()
+                .iter()
+                .map(|s| s.inspect_state())
+                .last()
+                .clone()
+        })
+    }
+
+    #[query]
+    pub fn pre_add_liquidity() -> u32 {
+        0
+    }
+
+    #[query]
+    pub fn pre_withdraw() -> u32 {
+        0
+    }
+
+    #[action(name = "swap")]
+    pub fn execute_swap(_args: ExecuteTxArgs) -> ExecuteTxResponse {
+        Ok("Transaction executed successfully".to_string())
+    }
+
+    #[action("add_liquidity")]
+    pub fn execute_add_liquidity(_args: ExecuteTxArgs) -> ExecuteTxResponse {
+        Ok("Liquidity added successfully".to_string())
+    }
+
+    #[action]
+    pub async fn withdraw(_args: ExecuteTxArgs) -> ExecuteTxResponse {
+        Ok("Withdrawal successful".to_string())
+    }
 }
 ```
 
-Return Type:
-
-- `Ok(String)`: The signed PSBT data in hex format. The exchange can add corresponding signature(s) to the PSBT data or not, but a valid PSBT data with the same `txid` with the given `psbt_hex` **MUST** be returned.
-- `Err(String)`: An error message if execution fails.
-
-### Rollback Tx
-
-Rolls back a transaction in the exchange. **All transactions following the given transaction should also be considered canceled.**
-
-Parameters:
-
-```rust
-pub struct RollbackTxArgs {
-    pub txid: Txid,
-    pub reason_code: String
-}
-```
-
-Where the `reason_code` is one of the following `Rollback Reason Code`:
-
-| Category | Rollback Reason Code | Description |
-|----------|---------|---------|
-| 00 - 19, Transaction is rejected by Mempool | 00 | Transaction rejected by Mempool: Specific Reason (insufficient fees, etc.) |
-| | 01 | Transaction replaced in Mempool |
-| | 02 | Transaction rejected by Mempool: conflict |
-| | 03 | Transaction rejected by Mempool: replacement failed |
-| | 04 | Transaction rejected by Mempool: input missing or spent |
-| 50 - 59, Transaction is rolled back by Orchestrator policy | 50 | Rollback by Orchestrator: Specific Reason (bug, etc.) |
-| | 51 | Final Bitcoin transaction is not valid |
-| 70 - 79, Transaction is failed because of Exchange error | 70 | An exchange returned error |
-| | 71 | An exchange returned invalid PSBT data |
-| 90 - 99, Other reasons | 99 | Unknown reason, check Orchestrator logs |
-
-Return Type:
-
-- `Ok(())`: On success.
-- `Err(String)`: If an error occurs.
-
-### New Block
-
-Notifies the exchange of a new block. The `confirmed_txids` in `NewBlockInfo` are an array of txid which are executed by the exchange previously, these txids are included in the given block (that is considered as `confirmed`). The exchange can use this information to update its internal state.
-
-Parameters:
-
-```rust
-pub struct NewBlockInfo {
-    pub block_height: u32,
-    pub block_hash: String,
-    /// The block timestamp in seconds since the Unix epoch.
-    pub block_timestamp: u64,
-    pub confirmed_txids: Vec<Txid>,
-}
-
-pub type NewBlockArgs = NewBlockInfo;
-```
-
-Return Type:
-
-- `Ok(())`: On success.
-- `Err(String)`: If an error occurs.
-
-## REE Invoke
+## REE exchange client
 
 The `invoke` function in the REE Orchestrator serves as the main entry point for the REE protocol. This function takes `InvokeArgs` as a parameter, which includes the following fields:
 

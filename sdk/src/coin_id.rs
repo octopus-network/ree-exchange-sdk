@@ -36,6 +36,13 @@ impl Storable for CoinId {
         alloc::borrow::Cow::Owned(bytes)
     }
 
+    fn into_bytes(self) -> Vec<u8> {
+        let mut bytes = vec![];
+        bytes.extend_from_slice(self.block.to_be_bytes().as_ref());
+        bytes.extend_from_slice(self.tx.to_be_bytes().as_ref());
+        bytes
+    }
+
     fn from_bytes(bytes: alloc::borrow::Cow<[u8]>) -> Self {
         let block: [u8; 8] = bytes.as_ref()[0..8]
             .try_into()

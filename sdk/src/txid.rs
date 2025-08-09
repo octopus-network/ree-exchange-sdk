@@ -37,6 +37,10 @@ impl Storable for Txid {
         Cow::Owned(bytes)
     }
 
+    fn into_bytes(self) -> Vec<u8> {
+        bincode::serialize(&self).unwrap()
+    }
+
     fn from_bytes(bytes: Cow<[u8]>) -> Self {
         bincode::deserialize(bytes.as_ref()).unwrap()
     }
@@ -121,6 +125,10 @@ impl Txid {
             format!("Invalid bytes for a Bitcoin Txid: {:?}", e)
         })?))
     }
+
+    pub const fn zero() -> Self {
+        Txid([0; 32])
+    }
 }
 
 #[derive(Debug, Clone, Default, CandidType, serde::Serialize, serde::Deserialize)]
@@ -132,6 +140,10 @@ impl Storable for TxRecord {
     fn to_bytes(&self) -> Cow<[u8]> {
         let bytes = bincode::serialize(self).unwrap();
         Cow::Owned(bytes)
+    }
+
+    fn into_bytes(self) -> Vec<u8> {
+        bincode::serialize(&self).unwrap()
     }
 
     fn from_bytes(bytes: Cow<[u8]>) -> Self {
