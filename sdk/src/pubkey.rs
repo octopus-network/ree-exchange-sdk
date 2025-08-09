@@ -5,6 +5,7 @@ use candid::{
 };
 use ic_stable_structures::{storable::Bound, Storable};
 
+/// The Bitcoin public key compatible with the IC storage.
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug)]
 pub struct Pubkey(Vec<u8>);
 
@@ -55,6 +56,10 @@ impl Storable for Pubkey {
 
     fn to_bytes(&self) -> alloc::borrow::Cow<[u8]> {
         alloc::borrow::Cow::Borrowed(&self.0)
+    }
+
+    fn into_bytes(self) -> Vec<u8> {
+        self.0
     }
 
     fn from_bytes(bytes: alloc::borrow::Cow<[u8]>) -> Self {

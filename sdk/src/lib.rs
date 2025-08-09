@@ -1,3 +1,139 @@
+//! The REE Exchange SDK provides a set of types and interfaces for building REE exchanges.
+//!
+//! # Example
+//! ```rust
+//! use candid::{CandidType, Deserialize};
+//! use ic_cdk::{query, update};
+//! use ic_stable_structures::{Storable, storable::Bound};
+//! use ree_exchange_sdk::{
+//!     prelude::*,
+//!     {CoinBalance, Txid, Utxo},
+//! };
+//! use serde::Serialize;
+//!
+//! /// The state stored in the pool.
+//! #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+//! pub struct DummyPoolState {
+//!     pub txid: Txid,
+//!     pub nonce: u64,
+//!     pub coin_reserved: Vec<CoinBalance>,
+//!     pub btc_reserved: u64,
+//!     pub utxos: Vec<Utxo>,
+//!     pub attributes: String,
+//! }
+//!
+//! /// The state must implement the `Storable` trait
+//! impl Storable for DummyPoolState {
+//!     const BOUND: Bound = Bound::Unbounded;
+//!
+//!     fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+//!         let bytes = bincode::serialize(&self).unwrap();
+//!         std::borrow::Cow::Owned(bytes)
+//!     }
+//!
+//!     fn into_bytes(self) -> Vec<u8> {
+//!         bincode::serialize(&self).unwrap();
+//!     }
+//!
+//!     fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+//!         bincode::deserialize(bytes.as_ref()).unwrap()
+//!     }
+//! }
+//!
+//! /// The state view must implement the `StateView` trait
+//! impl StateView for DummyPoolState {
+//!     fn inspect_state(&self) -> StateInfo {
+//!         StateInfo {
+//!             txid: self.txid,
+//!             nonce: self.nonce,
+//!             coin_reserved: self.coin_reserved.clone(),
+//!             btc_reserved: self.btc_reserved,
+//!             utxos: self.utxos.clone(),
+//!             attributes: "{}".to_string(),
+//!         }
+//!     }
+//! }
+//!
+//! /// Entry point for the exchange.
+//! #[exchange]
+//! pub mod exchange {
+//!     use super::*;
+//!
+//!     #[pools]
+//!     pub struct DummyPools;
+//!
+//!     impl Pools for DummyPools {
+//!         type State = DummyPoolState;
+//!
+//!         const POOL_MEMORY: u8 = 102;
+//!
+//!         const BLOCK_MEMORY: u8 = 100;
+//!
+//!         const TRANSACTION_MEMORY: u8 = 101;
+//!
+//!         fn network() -> Network {
+//!             Network::Testnet4
+//!         }
+//!
+//!         // This is optional
+//!         fn finalize_threshold() -> u32 {
+//!             60
+//!         }
+//!     }
+//!
+//!     /// This is optional
+//!     #[hook]
+//!     impl Hook for DummyPools {
+//!         /// This function is called when a new block is received, before any processing.
+//!         fn on_block_received(_args: NewBlockInfo) {}
+//!
+//!         /// This function is called when a transaction is dropped from the mempool.
+//!         fn on_state_reverted(_address: String, _txid: Txid) {}
+//!
+//!         /// This function is called when a transaction is confirmed in a block.
+//!         fn on_state_confirmed(_address: String, _txid: Txid, _block: Block) {}
+//!
+//!         /// This function is called when a transaction reaches the finalize threshold.
+//!         fn on_state_finalized(_address: String, _txid: Txid, _block: Block) {}
+//!
+//!         /// This function is called after a new block is processed.
+//!         fn on_block_processed(_args: NewBlockInfo) {}
+//!     }
+//!
+//!     #[update]
+//!     pub fn new_pool(args: Metadata) {
+//!         let pool = Pool::new(args.clone());
+//!         DummyPools::insert(pool.clone());
+//!         let loaded = DummyPools::get(&args.address);
+//!         assert_eq!(loaded, Some(pool), "Pool not loaded correctly");
+//!         let (addr, p) = DummyPools::iter().next().unwrap();
+//!         assert_eq!(addr, args.address, "Pool address mismatch");
+//!         assert_eq!(Some(p), loaded, "Pool data mismatch");
+//!         DummyPools::remove(&args.address);
+//!         let loaded = DummyPools::get(&args.address);
+//!         assert!(loaded.is_none(), "Pool not removed correctly");
+//!     }
+//!
+//!     // returns essential pool information so the client could construct a PSBT
+//!     #[query]
+//!     pub fn pre_swap(addr: String) -> Option<StateInfo> {
+//!         DummyPools::get(&addr).and_then(|pool| {
+//!             pool.states()
+//!                 .iter()
+//!                 .map(|s| s.inspect_state())
+//!                 .last()
+//!                 .clone()
+//!         })
+//!     }
+//!
+//!     #[action(name = "swap")]
+//!     pub async fn execute_swap(_args: ExecuteTxArgs) -> ExecuteTxResponse {
+//!         // do check and sign the PSBT
+//!         Ok("Transaction executed successfully".to_string())
+//!     }
+//! }
+//!```
+//!
 extern crate alloc;
 
 use alloc::str::FromStr;
@@ -7,18 +143,28 @@ use serde::{Deserialize, Serialize};
 mod coin_id;
 pub mod exchange_interfaces;
 mod intention;
+#[doc(hidden)]
 pub mod orchestrator_interfaces;
 pub mod psbt;
 mod pubkey;
+#[doc(hidden)]
+pub mod reorg;
 pub mod schnorr;
 mod txid;
 
 pub use bitcoin;
 pub use coin_id::CoinId;
+pub use ic_cdk;
 pub use intention::*;
 pub use pubkey::Pubkey;
 pub use txid::{TxRecord, Txid};
 
+pub mod prelude {
+    pub use crate::exchange_interfaces::*;
+    pub use ree_exchange_sdk_macro::*;
+}
+
+/// The CoinBalance struct represents a balance of a specific coin type.
 #[derive(
     CandidType, Copy, Clone, Debug, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord,
 )]
@@ -27,9 +173,11 @@ pub struct CoinBalance {
     pub value: u128,
 }
 
+/// The CoinBalances struct is a collection of CoinBalance objects.
 #[derive(CandidType, Eq, PartialEq, Clone, Debug, Deserialize, Serialize)]
 pub struct CoinBalances(Vec<CoinBalance>);
 
+/// The Bitcoin UTXO with Runes coin balances.
 #[derive(CandidType, Eq, PartialEq, Clone, Debug, Deserialize, Serialize)]
 pub struct Utxo {
     pub txid: Txid,

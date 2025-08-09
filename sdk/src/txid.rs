@@ -5,6 +5,7 @@ use candid::{
 };
 use ic_stable_structures::storable::{Bound, Storable};
 
+/// The Bitcoin Txid compatible with the IC storage.
 #[derive(Eq, Ord, PartialOrd, PartialEq, Clone, Copy, Debug)]
 pub struct Txid([u8; 32]);
 
@@ -35,6 +36,10 @@ impl Storable for Txid {
     fn to_bytes(&self) -> Cow<[u8]> {
         let bytes = bincode::serialize(self).unwrap();
         Cow::Owned(bytes)
+    }
+
+    fn into_bytes(self) -> Vec<u8> {
+        bincode::serialize(&self).unwrap()
     }
 
     fn from_bytes(bytes: Cow<[u8]>) -> Self {
@@ -121,8 +126,13 @@ impl Txid {
             format!("Invalid bytes for a Bitcoin Txid: {:?}", e)
         })?))
     }
+
+    pub const fn zero() -> Self {
+        Txid([0; 32])
+    }
 }
 
+#[doc(hidden)]
 #[derive(Debug, Clone, Default, CandidType, serde::Serialize, serde::Deserialize)]
 pub struct TxRecord {
     pub pools: Vec<String>,
@@ -132,6 +142,10 @@ impl Storable for TxRecord {
     fn to_bytes(&self) -> Cow<[u8]> {
         let bytes = bincode::serialize(self).unwrap();
         Cow::Owned(bytes)
+    }
+
+    fn into_bytes(self) -> Vec<u8> {
+        bincode::serialize(&self).unwrap()
     }
 
     fn from_bytes(bytes: Cow<[u8]>) -> Self {

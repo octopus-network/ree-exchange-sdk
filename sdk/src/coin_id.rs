@@ -5,6 +5,7 @@ use candid::{
 };
 use ic_stable_structures::{storable::Bound, Storable};
 
+/// The identifier for a RUNE in the Bitcoin network. Specially, BTC is represented by `CoinId::btc()`.
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Hash)]
 pub struct CoinId {
     pub block: u64,
@@ -34,6 +35,13 @@ impl Storable for CoinId {
         bytes.extend_from_slice(self.block.to_be_bytes().as_ref());
         bytes.extend_from_slice(self.tx.to_be_bytes().as_ref());
         alloc::borrow::Cow::Owned(bytes)
+    }
+
+    fn into_bytes(self) -> Vec<u8> {
+        let mut bytes = vec![];
+        bytes.extend_from_slice(self.block.to_be_bytes().as_ref());
+        bytes.extend_from_slice(self.tx.to_be_bytes().as_ref());
+        bytes
     }
 
     fn from_bytes(bytes: alloc::borrow::Cow<[u8]>) -> Self {

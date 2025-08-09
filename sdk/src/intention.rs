@@ -1,23 +1,25 @@
+use crate::{CoinBalance, CoinId, Utxo};
 use alloc::collections::BTreeSet;
 use candid::CandidType;
 use serde::{Deserialize, Serialize};
 
-use crate::{CoinBalance, CoinId, Utxo};
-
+/// Represents a coin input in an intention.
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct InputCoin {
-    // The address of the owner of the coins
+    /// The address of the owner of the coins
     pub from: String,
     pub coin: CoinBalance,
 }
 
+/// Represents a coin output in an intention.
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct OutputCoin {
-    // The address of the receiver of the coins
+    /// The address of the receiver of the coins
     pub to: String,
     pub coin: CoinBalance,
 }
 
+/// Represents an intention to perform an action in a specific pool of an exchange.
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Intention {
     pub exchange_id: String,
@@ -31,29 +33,32 @@ pub struct Intention {
     pub output_coins: Vec<OutputCoin>,
 }
 
+/// Represents a set of intentions to be executed in a transaction.
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct IntentionSet {
+    /// The address of the initiator of the transaction
     pub initiator_address: String,
+    /// The fee in satoshis for the transaction
     pub tx_fee_in_sats: u64,
+    /// The list of intentions to be executed in the transaction
     pub intentions: Vec<Intention>,
 }
 
 impl Intention {
-    //
     pub fn input_coin_ids(&self) -> Vec<CoinId> {
         self.input_coins
             .iter()
             .map(|input_coin| input_coin.coin.id.clone())
             .collect()
     }
-    //
+
     pub fn output_coin_ids(&self) -> Vec<CoinId> {
         self.output_coins
             .iter()
             .map(|output_coin| output_coin.coin.id.clone())
             .collect()
     }
-    //
+
     pub fn all_coin_ids(&self) -> Vec<CoinId> {
         let mut coin_ids: BTreeSet<CoinId> = BTreeSet::new();
         for coin_id in self.input_coin_ids().into_iter() {
@@ -67,7 +72,6 @@ impl Intention {
 }
 
 impl IntentionSet {
-    //
     pub fn all_input_coins(&self) -> Vec<InputCoin> {
         let mut input_coins = BTreeSet::new();
         for intention in self.intentions.iter() {
@@ -77,7 +81,7 @@ impl IntentionSet {
         }
         input_coins.into_iter().collect()
     }
-    //
+
     pub fn all_output_coins(&self) -> Vec<OutputCoin> {
         let mut output_coins = BTreeSet::new();
         for intention in self.intentions.iter() {
@@ -87,7 +91,7 @@ impl IntentionSet {
         }
         output_coins.into_iter().collect()
     }
-    //
+
     pub fn all_coin_ids(&self) -> Vec<CoinId> {
         let mut coin_ids: BTreeSet<CoinId> = BTreeSet::new();
         for intention in self.intentions.iter() {
