@@ -3,7 +3,7 @@ use alloc::collections::BTreeSet;
 use candid::CandidType;
 use serde::{Deserialize, Serialize};
 
-/// Represents a coin input in an intention
+/// Represents a coin input in an intention.
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct InputCoin {
     /// The address of the owner of the coins
@@ -11,7 +11,7 @@ pub struct InputCoin {
     pub coin: CoinBalance,
 }
 
-/// Represents a coin output in an intention
+/// Represents a coin output in an intention.
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct OutputCoin {
     /// The address of the receiver of the coins
@@ -45,21 +45,20 @@ pub struct IntentionSet {
 }
 
 impl Intention {
-    //
     pub fn input_coin_ids(&self) -> Vec<CoinId> {
         self.input_coins
             .iter()
             .map(|input_coin| input_coin.coin.id.clone())
             .collect()
     }
-    //
+
     pub fn output_coin_ids(&self) -> Vec<CoinId> {
         self.output_coins
             .iter()
             .map(|output_coin| output_coin.coin.id.clone())
             .collect()
     }
-    //
+
     pub fn all_coin_ids(&self) -> Vec<CoinId> {
         let mut coin_ids: BTreeSet<CoinId> = BTreeSet::new();
         for coin_id in self.input_coin_ids().into_iter() {
@@ -73,7 +72,6 @@ impl Intention {
 }
 
 impl IntentionSet {
-    //
     pub fn all_input_coins(&self) -> Vec<InputCoin> {
         let mut input_coins = BTreeSet::new();
         for intention in self.intentions.iter() {
@@ -83,7 +81,7 @@ impl IntentionSet {
         }
         input_coins.into_iter().collect()
     }
-    //
+
     pub fn all_output_coins(&self) -> Vec<OutputCoin> {
         let mut output_coins = BTreeSet::new();
         for intention in self.intentions.iter() {
@@ -93,7 +91,7 @@ impl IntentionSet {
         }
         output_coins.into_iter().collect()
     }
-    //
+
     pub fn all_coin_ids(&self) -> Vec<CoinId> {
         let mut coin_ids: BTreeSet<CoinId> = BTreeSet::new();
         for intention in self.intentions.iter() {
