@@ -5,6 +5,7 @@ use candid::{
 };
 use ic_stable_structures::{storable::Bound, Storable};
 
+/// The Bitcoin public key compatible with the IC storage.
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug)]
 pub struct Pubkey(Vec<u8>);
 

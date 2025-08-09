@@ -5,6 +5,7 @@ use candid::{
 };
 use ic_stable_structures::storable::{Bound, Storable};
 
+/// The Bitcoin Txid compatible with the IC storage.
 #[derive(Eq, Ord, PartialOrd, PartialEq, Clone, Copy, Debug)]
 pub struct Txid([u8; 32]);
 
@@ -131,6 +132,7 @@ impl Txid {
     }
 }
 
+#[doc(hidden)]
 #[derive(Debug, Clone, Default, CandidType, serde::Serialize, serde::Deserialize)]
 pub struct TxRecord {
     pub pools: Vec<String>,

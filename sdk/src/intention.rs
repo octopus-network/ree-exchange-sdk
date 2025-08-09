@@ -1,23 +1,25 @@
+use crate::{CoinBalance, CoinId, Utxo};
 use alloc::collections::BTreeSet;
 use candid::CandidType;
 use serde::{Deserialize, Serialize};
 
-use crate::{CoinBalance, CoinId, Utxo};
-
+/// Represents a coin input in an intention
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct InputCoin {
-    // The address of the owner of the coins
+    /// The address of the owner of the coins
     pub from: String,
     pub coin: CoinBalance,
 }
 
+/// Represents a coin output in an intention
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct OutputCoin {
-    // The address of the receiver of the coins
+    /// The address of the receiver of the coins
     pub to: String,
     pub coin: CoinBalance,
 }
 
+/// Represents an intention to perform an action in a specific pool of an exchange.
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Intention {
     pub exchange_id: String,
@@ -31,10 +33,14 @@ pub struct Intention {
     pub output_coins: Vec<OutputCoin>,
 }
 
+/// Represents a set of intentions to be executed in a transaction.
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct IntentionSet {
+    /// The address of the initiator of the transaction
     pub initiator_address: String,
+    /// The fee in satoshis for the transaction
     pub tx_fee_in_sats: u64,
+    /// The list of intentions to be executed in the transaction
     pub intentions: Vec<Intention>,
 }
 

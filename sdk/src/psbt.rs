@@ -10,6 +10,7 @@ fn cmp<'a>(mine: &'a Utxo, outpoint: &OutPoint) -> bool {
     Into::<bitcoin::Txid>::into(mine.txid) == outpoint.txid && mine.vout == outpoint.vout
 }
 
+/// Signs the PSBT inputs using IC chain-key that match the provided pool inputs with a Taproot key spend signature.
 pub async fn ree_pool_sign(
     psbt: &mut Psbt,
     pool_inputs: Vec<&Utxo>,
