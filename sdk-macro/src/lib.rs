@@ -181,11 +181,11 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     input_coins,
                     output_coins,
                 } = &intention_set.intentions[intention_index as usize];
-                let __pool_address = pool_address.clone();
-                let _guard = self::__ExecuteTxGuard::new(__pool_address.clone())
-                    .ok_or(format!("Pool {} is being executed", __pool_address))?;
-                let __txid = txid.clone();
-                let __action = action.clone();
+                let pool_address = pool_address.clone();
+                let _guard = self::__ExecuteTxGuard::new(pool_address.clone())
+                    .ok_or(format!("Pool {} is being executed", pool_address))?;
+                let txid = txid.clone();
+                let action = action.clone();
                 let args = ::ree_exchange_sdk::exchange_interfaces::ExecuteTxArgs {
                     psbt_hex,
                     txid,
@@ -193,23 +193,33 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     intention_index,
                     zero_confirmed_tx_queue_length,
                 };
-                let __result = match __action.as_str() {
-                    // TODO auto commit
+                let result: ::ree_exchange_sdk::exchange_interfaces::ActionResult::<<#pools as ::ree_exchange_sdk::exchange_interfaces::Pools>::State> = match action.as_str() {
                     #(#branch)*
-                    _ => ::core::result::Result::<String, String>::Err(format!("Unknown action: {}", __action)),
+                    _ => ::ree_exchange_sdk::exchange_interfaces::ActionResult::<<#pools as ::ree_exchange_sdk::exchange_interfaces::Pools>::State>::Err(format!("Unknown action: {}", action)),
                 };
-                match __result {
-                    ::core::result::Result::Ok(r) => {
-                        self::__TX_RECORDS.with_borrow_mut(|m| {
-                            let mut __record = m.get(&(__txid.clone(), false)).unwrap_or_default();
-                            if !__record.pools.contains(&__pool_address) {
-                                __record.pools.push(__pool_address.clone());
+                match result {
+                    ::ree_exchange_sdk::exchange_interfaces::ActionResult::<<#pools as ::ree_exchange_sdk::exchange_interfaces::Pools>::State>::Ok(r) => {
+                        self::__CURRENT_POOLS.with_borrow_mut(|pools| {
+                            if let Some(mut pool) = pools.get(&pool_address) {
+                                pool.states_mut().push(r);
+                                pools.insert(pool_address.clone(), pool);
+                                ::core::result::Result::<(), String>::Ok(())
+                            } else {
+                                ::core::result::Result::<(), String>::Err(format!("Pool {} not found", pool_address))
                             }
-                            m.insert((__txid.clone(), false), __record);
+                        })?;
+                        self::__TX_RECORDS.with_borrow_mut(|m| {
+                            let mut record = m.get(&(txid.clone(), false)).unwrap_or_default();
+                            if !record.pools.contains(&pool_address) {
+                                record.pools.push(pool_address.clone());
+                            }
+                            m.insert((txid.clone(), false), record);
                         });
-                        ::core::result::Result::<String, String>::Ok(r)
+                        ::core::result::Result::<String, String>::Ok(txid.to_string())
                     }
-                    ::core::result::Result::Err(e) => ::core::result::Result::<String, String>::Err(e),
+                    ::ree_exchange_sdk::exchange_interfaces::ActionResult::<<#pools as ::ree_exchange_sdk::exchange_interfaces::Pools>::State>::Err(e) => {
+                        ::core::result::Result::<String, String>::Err(e)
+                    }
                 }
             }
         });

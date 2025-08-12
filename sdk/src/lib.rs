@@ -109,20 +109,29 @@
 //!     // returns essential pool information so the client could construct a PSBT
 //!     #[query]
 //!     pub fn pre_swap(addr: String) -> Option<StateInfo> {
-//!         DummyPools::get(&addr).and_then(|pool| {
-//!             pool.states()
-//!                 .iter()
-//!                 .map(|s| s.inspect_state())
-//!                 .last()
-//!                 .clone()
-//!         })
+//!         DummyPools::get(&addr).and_then(|p| p.last_state().map(|s| s.inspect_state()))
 //!     }
 //!
+//!     // execute "swap" action
 //!     #[action(name = "swap")]
-//!     pub async fn execute_swap(args: ExecuteTxArgs) -> ExecuteTxResponse {
-//!         let mut psbt = args.psbt()?;
-//!         // sign psbt
-//!         Ok(psbt.serialize_hex())
+//!     pub async fn execute_swap(args: ExecuteTxArgs) -> ActionResult<Pool::State> {
+//!         // do check and sign the PSBT
+//!         let ree_exchange_sdk::Intention {
+//!             exchange_id,
+//!             action,
+//!             action_params,
+//!             pool_address,
+//!             nonce,
+//!             pool_utxo_spent,
+//!             pool_utxo_received,
+//!             input_coins,
+//!             output_coins,
+//!         } = &args.intention_set.intentions[args.intention_index as usize];
+//!         let mut state = DummyPools::get(&addr)
+//!             .and_then(|pool| pool.last_state().cloned())
+//!             .ok_or("Pool not found".to_string())?;
+//!         state.nonce = state.nonce + 1;
+//!         Ok(state)
 //!     }
 //! }
 //!```

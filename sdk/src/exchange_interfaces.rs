@@ -67,7 +67,7 @@ impl ExecuteTxArgs {
     }
 }
 
-/// The response for the `actions`.
+#[doc(hidden)]
 pub type ExecuteTxResponse = Result<String, String>;
 
 #[doc(hidden)]
@@ -157,6 +157,9 @@ pub struct StateInfo {
     pub attributes: String,
 }
 
+/// The result type for actions in the exchange, which can either be successful with a state or an error message.
+pub type ActionResult<S> = Result<S, String>;
+
 /// User must implement the `StateView` trait for customized state to provide this information.
 pub trait StateView {
     fn inspect_state(&self) -> StateInfo;
@@ -164,7 +167,7 @@ pub trait StateView {
 
 /// The concrete type stored in the IC stable memory.
 /// The SDK will automatically manage the pool state `S`.
-#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(CandidType, Debug, Deserialize, Serialize)]
 pub struct Pool<S> {
     metadata: Metadata,
     states: Vec<S>,
@@ -264,9 +267,9 @@ impl<S> Pool<S> {
         &self.metadata
     }
 
-    /// pushes a new state into the pool.
-    pub fn push(&mut self, state: S) {
-        self.states.push(state);
+    /// Returns a reference of the last state of the pool.
+    pub fn last_state(&self) -> Option<&S> {
+        self.states.last()
     }
 
     /// Returns the states of the pool.
