@@ -105,6 +105,7 @@ impl VisitMut for CanisterVisitor {
     }
 }
 
+/// REE exchange entrypoint.
 #[proc_macro_attribute]
 pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut input_mod = parse_macro_input!(item as ItemMod);
@@ -362,16 +363,28 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
     .into()
 }
 
+/// Action entrypoint. The macro could be
+/// ```#[action(name = "my_action")]``` or ```#[action("my_action")]``` or ```#[action]```.
+/// The function shall have a single argument `ExecuteTxArgs` and return a `Result<String, String>`
 #[proc_macro_attribute]
 pub fn action(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
+/// Pools definition
 #[proc_macro_attribute]
 pub fn pools(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
+/// Optional hook for `Pools`. It should be marked on the `Hook` impl block of the `Pools` struct.
+/// ```rust
+/// #[hook]
+/// impl Hook for MyPools {
+/// ...
+/// }
+///
+/// ```
 #[proc_macro_attribute]
 pub fn hook(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
