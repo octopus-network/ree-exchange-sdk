@@ -104,14 +104,6 @@
 //!     pub fn new_pool(args: Metadata) {
 //!         let pool = Pool::new(args.clone());
 //!         DummyPools::insert(pool.clone());
-//!         let loaded = DummyPools::get(&args.address);
-//!         assert_eq!(loaded, Some(pool), "Pool not loaded correctly");
-//!         let (addr, p) = DummyPools::iter().next().unwrap();
-//!         assert_eq!(addr, args.address, "Pool address mismatch");
-//!         assert_eq!(Some(p), loaded, "Pool data mismatch");
-//!         DummyPools::remove(&args.address);
-//!         let loaded = DummyPools::get(&args.address);
-//!         assert!(loaded.is_none(), "Pool not removed correctly");
 //!     }
 //!
 //!     // returns essential pool information so the client could construct a PSBT
@@ -127,9 +119,10 @@
 //!     }
 //!
 //!     #[action(name = "swap")]
-//!     pub async fn execute_swap(_args: ExecuteTxArgs) -> ExecuteTxResponse {
-//!         // do check and sign the PSBT
-//!         Ok("Transaction executed successfully".to_string())
+//!     pub async fn execute_swap(args: ExecuteTxArgs) -> ExecuteTxResponse {
+//!         let mut psbt = args.psbt()?;
+//!         // sign psbt
+//!         Ok(psbt.serialize_hex())
 //!     }
 //! }
 //!```

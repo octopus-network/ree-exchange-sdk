@@ -139,8 +139,10 @@ pub mod exchange {
     }
 
     #[action(name = "swap")]
-    pub fn execute_swap(_args: ExecuteTxArgs) -> ExecuteTxResponse {
-        Ok("Transaction executed successfully".to_string())
+    pub fn execute_swap(args: ExecuteTxArgs) -> ExecuteTxResponse {
+        let mut psbt = args.psbt()?;
+        // sign psbt
+        Ok(psbt.serialize_hex())
     }
 }
 ```
