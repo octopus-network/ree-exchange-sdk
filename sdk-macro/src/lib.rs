@@ -375,7 +375,7 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 /// Action entrypoint. The macro could be
 /// ```#[action(name = "my_action")]``` or ```#[action("my_action")]``` or ```#[action]```.
-/// The function shall have a single argument `ExecuteTxArgs` and return a `Result<String, String>`
+/// The function shall have a single argument `ExecuteTxArgs` and return an `ActionResult<Pools::State>`
 #[proc_macro_attribute]
 pub fn action(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
