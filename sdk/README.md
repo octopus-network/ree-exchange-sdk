@@ -1,5 +1,7 @@
 # REE Exchange Rust SDK
 
+![docs.rs](https://img.shields.io/docsrs/ree-exchange-sdk)
+
 > The Rust SDK for building native Bitcoin dApps on REE(Runes Exchange Environment).
 
 Unlike Ethereum and other smart contract platforms, Bitcoin's scripting language is not Turing complete, making it extremely challenging—if not impossible—to develop complex applications like AMM protocols directly on the Bitcoin network using BTC scripts and the UTXO model.
@@ -17,6 +19,8 @@ REE overcomes this limitation by leveraging the powerful Chain Key technology of
 **Broadcasting the Transaction**: The finalized transaction is returned to the REE, which broadcasts it to the Bitcoin network for execution.
 
 ## Quick start
+
+If you are familier with IC canister development, you could easily create an empty rust crate and paste the code into the `lib.rs`.
 
 ``` rust
 use candid::{CandidType, Deserialize};
@@ -121,14 +125,6 @@ pub mod exchange {
     pub fn new_pool(args: Metadata) {
         let pool = Pool::new(args.clone());
         DummyPools::insert(pool.clone());
-        let loaded = DummyPools::get(&args.address);
-        assert_eq!(loaded, Some(pool), "Pool not loaded correctly");
-        let (addr, p) = DummyPools::iter().next().unwrap();
-        assert_eq!(addr, args.address, "Pool address mismatch");
-        assert_eq!(Some(p), loaded, "Pool data mismatch");
-        DummyPools::remove(&args.address);
-        let loaded = DummyPools::get(&args.address);
-        assert!(loaded.is_none(), "Pool not removed correctly");
     }
 
     #[query]
@@ -151,7 +147,9 @@ pub mod exchange {
 
 ## REE exchange client
 
-The `invoke` function in the REE Orchestrator serves as the main entry point for the REE protocol. This function takes `InvokeArgs` as a parameter, which includes the following fields:
+To complete an REE transaction, the exchange client should call REE Orchestrator `invoke` rather than making request into exchanges directly.
+
+The `invoke` function of Orchestrator takes `InvokeArgs` as a parameter, which includes the following fields:
 
 ```rust
 pub struct InvokeArgs {
