@@ -1,6 +1,6 @@
 # REE Exchange Rust SDK
 
-![docs.rs](https://img.shields.io/docsrs/ree-exchange-sdk)
+[![docs.rs](https://img.shields.io/docsrs/ree-exchange-sdk)](https://docs.rs/ree-exchange-sdk/latest/ree_exchange_sdk/)
 
 > The Rust SDK for building native Bitcoin dApps on REE(Runes Exchange Environment).
 
