@@ -2,6 +2,8 @@
 
 > The Rust SDK for building native Bitcoin dApps on REE(Runes Exchange Environment).
 
+![docs.rs](https://img.shields.io/docsrs/ree-exchange-sdk)
+
 Unlike Ethereum and other smart contract platforms, Bitcoin's scripting language is not Turing complete, making it extremely challenging—if not impossible—to develop complex applications like AMM protocols directly on the Bitcoin network using BTC scripts and the UTXO model.
 
 REE overcomes this limitation by leveraging the powerful Chain Key technology of the Internet Computer Protocol (ICP) and Bitcoin's Partially Signed Bitcoin Transactions (PSBT) to extend the programmability of Bitcoin's Rune assets.
