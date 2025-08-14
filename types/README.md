@@ -1,22 +1,5 @@
 # REE Exchange Rust SDK
 
-![docs.rs](https://img.shields.io/docsrs/ree-exchange-sdk)
-
-> The Rust SDK for building native Bitcoin dApps on REE(Runes Exchange Environment).
-
-Unlike Ethereum and other smart contract platforms, Bitcoin's scripting language is not Turing complete, making it extremely challenging—if not impossible—to develop complex applications like AMM protocols directly on the Bitcoin network using BTC scripts and the UTXO model.
-
-REE overcomes this limitation by leveraging the powerful Chain Key technology of the Internet Computer Protocol (ICP) and Bitcoin's Partially Signed Bitcoin Transactions (PSBT) to extend the programmability of Bitcoin's Rune assets.
-
-## Basic procedures of REE exchange
-
-**Constructing the PSBT**: The REE exchange client application (e.g., a wallet or interface) gathers the necessary information from the REE exchange and constructs a PSBT based on the user’s input. The user then signs the PSBT to authorize the transaction.
-
-**Submitting the PSBT to REE**: The client composes the signed PSBT and essential information retrieved in the previous step and submit to REE Orchestrator. REE will validate the PSBT(including the UTXOs and their RUNE information) and analysis the input-output relations. If all check pass, Orchestrator will forward the request to RichSwap.
-
-**Exchange's Validation and Signing**: The exchange verifies the transaction details from REE Orchestrator and, if everything is valid, signs the pool’s UTXO using the ICP Chain Key. This step transforms the PSBT into a fully valid Bitcoin transaction.
-
-**Broadcasting the Transaction**: The finalized transaction is returned to the REE, which broadcasts it to the Bitcoin network for execution.
 
 ## Quick start
 
@@ -32,7 +15,7 @@ use ree_exchange_sdk::{
 };
 use serde::Serialize;
 
-#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
 pub struct DummyPoolState {
     pub txid: Txid,
     pub nonce: u64,
@@ -102,22 +85,22 @@ pub mod exchange {
         }
     }
 
-    /// This is optional
+    // This is optional
     #[hook]
     impl Hook for DummyPools {
-        /// This function is called when a new block is received, before any processing.
+        // This function is called when a new block is received, before any processing.
         fn on_block_received(_args: NewBlockInfo) {}
 
-        /// This function is called when a transaction is dropped from the mempool.
+        // This function is called when a transaction is dropped from the mempool.
         fn on_state_reverted(_address: String, _txid: Txid) {}
 
-        /// This function is called when a transaction is confirmed in a block.
+        // This function is called when a transaction is confirmed in a block.
         fn on_state_confirmed(_address: String, _txid: Txid, _block: Block) {}
 
-        /// This function is called when a transaction reaches the finalize threshold.
+        // This function is called when a transaction reaches the finalize threshold.
         fn on_state_finalized(_address: String, _txid: Txid, _block: Block) {}
 
-        /// This function is called after a new block is processed.
+        // This function is called after a new block is processed.
         fn on_block_processed(_args: NewBlockInfo) {}
     }
 
@@ -129,20 +112,19 @@ pub mod exchange {
 
     #[query]
     pub fn pre_swap(addr: String) -> Option<StateInfo> {
-        DummyPools::get(&addr).and_then(|pool| {
-            pool.states()
-                .iter()
-                .map(|s| s.inspect_state())
-                .last()
-                .clone()
-        })
+        DummyPools::get(&addr).and_then(|pool| pool.last_state().map(|s| s.inspect_state()))
     }
     
     #[action(name = "swap")]
-    pub fn execute_swap(args: ExecuteTxArgs) -> ExecuteTxResponse {
-        let mut psbt = args.psbt()?;
-        // sign psbt
-        Ok(psbt.serialize_hex())
+    pub fn execute_swap(psbt: &mut Psbt, args: ActionArgs) -> ActionResult<Pools::State> {
+        let mut state = DummyPools::get(&addr)
+            .and_then(|pool| pool.last_state().cloned())
+            .unwrap_or_default();
+        // do some checks..
+        state.nonce = state.nonce + 1;
+        state.txid = args.txid.clone();
+        // sign the psbt
+        Ok(state)
     }
 }
 ```

@@ -1,4 +1,4 @@
-use crate::exchange_interfaces::*;
+use crate::*;
 use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug)]
@@ -137,7 +137,7 @@ where
             ))?
             .rollback(args.txid)
             .map_err(|e| format!("Failed to rollback pool {}: {}", addr, e))?;
-        P::on_state_reverted(addr.clone(), args.txid);
+        P::on_tx_rollbacked(addr.clone(), args.txid, args.reason_code.clone());
     }
     transactions.remove(&(args.txid, false));
     transactions.remove(&(args.txid, true));
@@ -153,7 +153,7 @@ pub fn new_block<P>(
 where
     P: Pools + Hook,
 {
-    P::on_block_received(args.clone());
+    P::pre_new_block(args.clone());
     // Check for blockchain reorganizations
     match detect_reorg(blocks, P::finalize_threshold(), args.clone()) {
         Ok(_) => {}
@@ -192,7 +192,7 @@ where
             transactions.insert((txid, true), record.clone());
             ic_cdk::println!("confirm txid: {} with pools: {:?}", txid, record.pools);
             for addr in record.pools.into_iter() {
-                P::on_state_confirmed(addr, txid, new_block.clone());
+                P::on_tx_confirmed(addr, txid, new_block.clone());
             }
         }
     }
@@ -221,7 +221,7 @@ where
                                 addr, txid
                             ))?
                             .finalize(*txid)?;
-                        P::on_state_finalized(addr, *txid, finalized_block.clone());
+                        P::on_tx_finalized(addr, *txid, finalized_block.clone());
                     }
                     transactions.remove(&(*txid, true));
                 }
@@ -240,6 +240,6 @@ where
         ic_cdk::println!("removing block: {}", height);
         blocks.remove(&height);
     }
-    P::on_block_processed(args);
+    P::post_new_block(args);
     Ok(())
 }

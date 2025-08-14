@@ -132,6 +132,12 @@ impl Txid {
     }
 }
 
+impl Default for Txid {
+    fn default() -> Self {
+        Txid::zero()
+    }
+}
+
 #[doc(hidden)]
 #[derive(Debug, Clone, Default, CandidType, serde::Serialize, serde::Deserialize)]
 pub struct TxRecord {

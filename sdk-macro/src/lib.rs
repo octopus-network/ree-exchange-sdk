@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use std::collections::BTreeMap;
 use syn::{
-    parse_macro_input, parse_quote, visit_mut::VisitMut, Attribute, Ident, ItemFn, ItemMod, Meta,
+    Attribute, Ident, ItemFn, ItemMod, Meta, parse_macro_input, parse_quote, visit_mut::VisitMut,
 };
 
 #[derive(Clone)]
@@ -79,7 +79,9 @@ impl CanisterVisitor {
                 panic!("Unexpected tokens in #[action] macro");
             }
         } else {
-            panic!("Expected `#[action(\"..\")]` or `#[action(name = \"..\")]` or `#[action]` attribute");
+            panic!(
+                "Expected `#[action(\"..\")]` or `#[action(name = \"..\")]` or `#[action]` attribute"
+            );
         }
     }
 }
@@ -122,83 +124,60 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
             .map(|(action, (func, is_async))| {
                 let call = format_ident!("{}", func);
                 if *is_async {
-                    quote! { #action => #call(args).await, }
+                    quote! { #action => #call(&mut psbt, args).await, }
                 } else {
-                    quote! { #action => #call(args), }
+                    quote! { #action => #call(&mut psbt, args), }
                 }
             })
             .collect::<Vec<_>>();
 
         if !visitor.hook_present {
             items.push(parse_quote! {
-                impl ::ree_exchange_sdk::exchange_interfaces::Hook for #pools {}
+                impl ::ree_exchange_sdk::Hook for #pools {}
             });
         }
 
         items.push(parse_quote! {
-            impl ::ree_exchange_sdk::exchange_interfaces::PoolStorageAccess<#pools> for #pools {
-                fn get(address: &::std::string::String) -> ::std::option::Option<::ree_exchange_sdk::exchange_interfaces::Pool<<#pools as ::ree_exchange_sdk::exchange_interfaces::Pools>::State>> {
+            impl ::ree_exchange_sdk::PoolStorageAccess<#pools> for #pools {
+                fn get(address: &::std::string::String) -> ::std::option::Option<::ree_exchange_sdk::Pool<<#pools as ::ree_exchange_sdk::Pools>::State>> {
                     self::__CURRENT_POOLS.with_borrow(|p| p.get(address))
                 }
 
-                fn insert(pool: ::ree_exchange_sdk::exchange_interfaces::Pool<<#pools as ::ree_exchange_sdk::exchange_interfaces::Pools>::State>) {
+                fn insert(pool: ::ree_exchange_sdk::Pool<<#pools as ::ree_exchange_sdk::Pools>::State>) {
                     self::__CURRENT_POOLS.with_borrow_mut(|p| {
                         p.insert(pool.metadata().address.clone(), pool);
                     });
                 }
 
-                fn remove(address: &::std::string::String) -> ::std::option::Option<::ree_exchange_sdk::exchange_interfaces::Pool<<#pools as ::ree_exchange_sdk::exchange_interfaces::Pools>::State>> {
+                fn remove(address: &::std::string::String) -> ::std::option::Option<::ree_exchange_sdk::Pool<<#pools as ::ree_exchange_sdk::Pools>::State>> {
                     self::__CURRENT_POOLS.with_borrow_mut(|p| {
                         p.remove(address)
                     })
                 }
 
-                fn iter() -> ::ree_exchange_sdk::exchange_interfaces::iter::PoolIterator<#pools> {
-                    ::ree_exchange_sdk::exchange_interfaces::iterator::<#pools>()
+                fn iter() -> ::ree_exchange_sdk::iter::PoolIterator<#pools> {
+                    ::ree_exchange_sdk::iterator::<#pools>()
                 }
             }
         });
 
         items.push(parse_quote! {
             #[::ic_cdk::update]
-            pub async fn execute_tx(args: ::ree_exchange_sdk::exchange_interfaces::ExecuteTxArgs) -> ::core::result::Result<String, String> {
-                ::ree_exchange_sdk::exchange_interfaces::ensure_access::<#pools>()?;
-                let ::ree_exchange_sdk::exchange_interfaces::ExecuteTxArgs {
-                    psbt_hex,
-                    txid,
-                    intention_set,
-                    intention_index,
-                    zero_confirmed_tx_queue_length,
-                } = args;
-                let ::ree_exchange_sdk::Intention {
-                    exchange_id,
-                    action,
-                    action_params,
-                    pool_address,
-                    nonce,
-                    pool_utxo_spent,
-                    pool_utxo_received,
-                    input_coins,
-                    output_coins,
-                } = &intention_set.intentions[intention_index as usize];
-                let pool_address = pool_address.clone();
+            pub async fn execute_tx(args: ::ree_exchange_sdk::types::exchange_interfaces::ExecuteTxArgs) -> ::core::result::Result<String, String> {
+                ::ree_exchange_sdk::ensure_access::<#pools>()?;
+                let mut psbt = args.psbt()?;
+                let args = <::ree_exchange_sdk::ActionArgs as ::std::convert::From<_>>::from(args);
+                let pool_address = args.intention.pool_address.clone();
                 let _guard = self::__ExecuteTxGuard::new(pool_address.clone())
                     .ok_or(format!("Pool {} is being executed", pool_address))?;
-                let txid = txid.clone();
-                let action = action.clone();
-                let args = ::ree_exchange_sdk::exchange_interfaces::ExecuteTxArgs {
-                    psbt_hex,
-                    txid,
-                    intention_set,
-                    intention_index,
-                    zero_confirmed_tx_queue_length,
-                };
-                let result: ::ree_exchange_sdk::exchange_interfaces::ActionResult::<<#pools as ::ree_exchange_sdk::exchange_interfaces::Pools>::State> = match action.as_str() {
+                let txid = args.txid.clone();
+                let action = args.intention.action.clone();
+                let result: ::ree_exchange_sdk::ActionResult::<<#pools as ::ree_exchange_sdk::Pools>::State> = match action.as_str() {
                     #(#branch)*
-                    _ => ::ree_exchange_sdk::exchange_interfaces::ActionResult::<<#pools as ::ree_exchange_sdk::exchange_interfaces::Pools>::State>::Err(format!("Unknown action: {}", action)),
+                    _ => ::ree_exchange_sdk::ActionResult::<<#pools as ::ree_exchange_sdk::Pools>::State>::Err(format!("Unknown action: {}", action)),
                 };
                 match result {
-                    ::ree_exchange_sdk::exchange_interfaces::ActionResult::<<#pools as ::ree_exchange_sdk::exchange_interfaces::Pools>::State>::Ok(r) => {
+                    ::ree_exchange_sdk::ActionResult::<<#pools as ::ree_exchange_sdk::Pools>::State>::Ok(r) => {
                         self::__CURRENT_POOLS.with_borrow_mut(|pools| {
                             if let Some(mut pool) = pools.get(&pool_address) {
                                 pool.states_mut().push(r);
@@ -213,11 +192,11 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                             if !record.pools.contains(&pool_address) {
                                 record.pools.push(pool_address.clone());
                             }
-                            m.insert((txid.clone(), false), record);
+                            m.insert((txid, false), record);
                         });
-                        ::core::result::Result::<String, String>::Ok(txid.to_string())
+                        ::core::result::Result::<String, String>::Ok(psbt.serialize_hex())
                     }
-                    ::ree_exchange_sdk::exchange_interfaces::ActionResult::<<#pools as ::ree_exchange_sdk::exchange_interfaces::Pools>::State>::Err(e) => {
+                    ::ree_exchange_sdk::ActionResult::<<#pools as ::ree_exchange_sdk::Pools>::State>::Err(e) => {
                         ::core::result::Result::<String, String>::Err(e)
                     }
                 }
@@ -226,7 +205,7 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
         items.push(parse_quote! {
             #[::ic_cdk::query]
-            pub fn get_pool_list() -> ::ree_exchange_sdk::exchange_interfaces::GetPoolListResponse {
+            pub fn get_pool_list() -> ::ree_exchange_sdk::types::exchange_interfaces::GetPoolListResponse {
                 self::__CURRENT_POOLS.with_borrow(|pools| {
                     pools.iter()
                         .map(|e| e.into_pair())
@@ -239,8 +218,8 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
         items.push(parse_quote! {
             #[::ic_cdk::query]
             pub fn get_pool_info(
-                args: ::ree_exchange_sdk::exchange_interfaces::GetPoolInfoArgs,
-            ) -> ::ree_exchange_sdk::exchange_interfaces::GetPoolInfoResponse {
+                args: ::ree_exchange_sdk::types::exchange_interfaces::GetPoolInfoArgs,
+            ) -> ::ree_exchange_sdk::types::exchange_interfaces::GetPoolInfoResponse {
                 self::__CURRENT_POOLS.with_borrow(|pools| {
                     pools.get(&args.pool_address).map(|p| p.get_pool_info())
                 })
@@ -250,9 +229,9 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
         items.push(parse_quote! {
             #[::ic_cdk::update]
             pub fn rollback_tx(
-                args: ::ree_exchange_sdk::exchange_interfaces::RollbackTxArgs,
-            ) -> ::ree_exchange_sdk::exchange_interfaces::RollbackTxResponse {
-                ::ree_exchange_sdk::exchange_interfaces::ensure_access::<#pools>()?;
+                args: ::ree_exchange_sdk::types::exchange_interfaces::RollbackTxArgs,
+            ) -> ::ree_exchange_sdk::types::exchange_interfaces::RollbackTxResponse {
+                ::ree_exchange_sdk::ensure_access::<#pools>()?;
                 self::__TX_RECORDS.with_borrow_mut(|transactions| {
                     self::__CURRENT_POOLS.with_borrow_mut(|pools| {
                         ::ree_exchange_sdk::reorg::rollback_tx::<#pools>(transactions, pools, args)
@@ -264,9 +243,9 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
         items.push(parse_quote! {
             #[::ic_cdk::update]
             pub fn new_block(
-                args: ::ree_exchange_sdk::exchange_interfaces::NewBlockArgs,
-            ) -> ::ree_exchange_sdk::exchange_interfaces::NewBlockResponse {
-                ::ree_exchange_sdk::exchange_interfaces::ensure_access::<#pools>()?;
+                args: ::ree_exchange_sdk::types::exchange_interfaces::NewBlockArgs,
+            ) -> ::ree_exchange_sdk::types::exchange_interfaces::NewBlockResponse {
+                ::ree_exchange_sdk::ensure_access::<#pools>()?;
                 self::__TX_RECORDS.with_borrow_mut(|transactions| {
                     self::__CURRENT_POOLS.with_borrow_mut(|pools| {
                         self::__BLOCKS.with_borrow_mut(|blocks| {
@@ -326,46 +305,49 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 static __BLOCKS: ::core::cell::RefCell<
                     ::ic_stable_structures::StableBTreeMap<
                         u32,
-                        ::ree_exchange_sdk::exchange_interfaces::NewBlockInfo,
+                        ::ree_exchange_sdk::types::exchange_interfaces::NewBlockInfo,
                         ::ic_stable_structures::memory_manager::VirtualMemory<::ic_stable_structures::DefaultMemoryImpl>
                     >
                 > = ::core::cell::RefCell::new(
                     ::ic_stable_structures::StableBTreeMap::init(
                         __MEMORY_MANAGER.with(|m| m.borrow().get(::ic_stable_structures::memory_manager::MemoryId::new(
-                            <#pools as ::ree_exchange_sdk::exchange_interfaces::Pools>::BLOCK_MEMORY
+                            <#pools as ::ree_exchange_sdk::Pools>::BLOCK_MEMORY
                         ))),
                     )
                 );
                 static __TX_RECORDS: ::core::cell::RefCell<
                     ::ic_stable_structures::StableBTreeMap<
-                        (::ree_exchange_sdk::Txid, bool),
-                        ::ree_exchange_sdk::TxRecord,
+                        (::ree_exchange_sdk::types::Txid, bool),
+                        ::ree_exchange_sdk::types::TxRecord,
                         ::ic_stable_structures::memory_manager::VirtualMemory<::ic_stable_structures::DefaultMemoryImpl>
                     >
                 > = ::core::cell::RefCell::new(
                     ::ic_stable_structures::StableBTreeMap::init(
                         __MEMORY_MANAGER.with(|m| m.borrow().get(::ic_stable_structures::memory_manager::MemoryId::new(
-                            <#pools as ::ree_exchange_sdk::exchange_interfaces::Pools>::TRANSACTION_MEMORY
+                            <#pools as ::ree_exchange_sdk::Pools>::TRANSACTION_MEMORY
                         ))),
                     )
                 );
                 static __CURRENT_POOLS: ::core::cell::RefCell<
                     ::ic_stable_structures::StableBTreeMap<
                         ::std::string::String,
-                        ::ree_exchange_sdk::exchange_interfaces::Pool<
-                            <#pools as ::ree_exchange_sdk::exchange_interfaces::Pools>::State
+                        ::ree_exchange_sdk::Pool<
+                            <#pools as ::ree_exchange_sdk::Pools>::State
                         >,
                         ::ic_stable_structures::memory_manager::VirtualMemory<::ic_stable_structures::DefaultMemoryImpl>
                     >
                 > = ::core::cell::RefCell::new(
                     ::ic_stable_structures::StableBTreeMap::init(
                         __MEMORY_MANAGER.with(|m| m.borrow().get(::ic_stable_structures::memory_manager::MemoryId::new(
-                            <#pools as ::ree_exchange_sdk::exchange_interfaces::Pools>::POOL_MEMORY
+                            <#pools as ::ree_exchange_sdk::Pools>::POOL_MEMORY
                         ))),
                     )
                 );
             }
         });
+
+        // items.push(parse_quote! {
+        // });
     }
     quote! {
         #input_mod
@@ -374,8 +356,8 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 /// Action entrypoint. The macro could be
-/// ```#[action(name = "my_action")]``` or ```#[action("my_action")]``` or ```#[action]```.
-/// The function shall have a single argument `ExecuteTxArgs` and return an `ActionResult<Pools::State>`
+/// `#[action(name = "my_action")]` or `#[action("my_action")]` or `#[action]`.
+/// The functions shall have signature `fn(&mut Psbt, ActionArgs) -> ActionResult<Pools::State>`
 #[proc_macro_attribute]
 pub fn action(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
