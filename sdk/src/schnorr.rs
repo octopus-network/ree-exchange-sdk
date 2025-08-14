@@ -47,17 +47,6 @@ fn mgmt_canister_id() -> CanisterId {
     CanisterId::from_text(MGMT_CANISTER_ID).unwrap()
 }
 
-// Validates that the schnorr key name is either "test_key_1" or "key_1"
-// fn validate_schnorr_key_name(key_name: &str) -> Result<(), String> {
-//     match key_name {
-//         "test_key_1" | "key_1" => Ok(()),
-//         _ => Err(format!(
-//             "Invalid schnorr key name '{}'. Must be either 'test_key_1' or 'key_1'",
-//             key_name
-//         )),
-//     }
-// }
-
 pub async fn sign_p2tr(
     message: Vec<u8>,
     network: Network,

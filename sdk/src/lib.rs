@@ -97,11 +97,11 @@
 //!         fn post_new_block(_args: NewBlockInfo) {}
 //!     }
 //!
-//!     // `demo` is the action function that will be called by the REE Orchestrator
+//!     // `swap` is the action function that will be called by the REE Orchestrator
 //!     // All actions should return an `ActionResult<S>` where `S` is the pool state of `Pools`.
 //!     // The SDK will automatically commit this state to the IC stable memory.
-//!     #[action(name = "demo")]
-//!     pub async fn execute_demo(
+//!     #[action(name = "swap")]
+//!     pub async fn execute_swap(
 //!         psbt: &mut bitcoin::Psbt,
 //!         args: ActionArgs,
 //!     ) -> ActionResult<DummyPoolState> {
@@ -402,30 +402,6 @@ impl<S> Pool<S> {
     pub fn states_mut(&mut self) -> &mut Vec<S> {
         &mut self.states
     }
-
-    // pub async fn accept<P: Pools>(
-    //     &mut self,
-    //     state: S,
-    //     psbt: &mut bitcoin::Psbt,
-    // ) -> Result<(), String> {
-    //     let utxos = self
-    //         .last_state()
-    //         .map(|s| s.utxos.clone())
-    //         .unwrap_or_default();
-    //     let key_name = match P::network() {
-    //         Network::Bitcoin => "key_1",
-    //         Network::Testnet4 => "test_key_1",
-    //     };
-    //     crate::types::schnorr::ree_pool_sign(
-    //         psbt,
-    //         &utxos,
-    //         key_name,
-    //         self.metadata().key_derivation_path.clone(),
-    //     )
-    //     .await
-    //     .map_err(|e| format!("Failed to sign PSBT: {}", e))?;
-    //     Ok(())
-    // }
 }
 
 #[doc(hidden)]
