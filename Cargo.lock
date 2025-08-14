@@ -451,16 +451,13 @@ name = "ree-exchange-sdk"
 version = "0.8.0"
 dependencies = [
  "bincode",
- "bitcoin",
  "candid",
- "hex",
  "ic-cdk",
  "ic-stable-structures",
  "ree-exchange-sdk-macro",
  "ree-types",
  "serde",
  "serde_bytes",
- "serde_json",
 ]
 
 [[package]]
