@@ -448,7 +448,30 @@ dependencies = [
 
 [[package]]
 name = "ree-exchange-sdk"
-version = "0.7.1"
+version = "0.8.0"
+dependencies = [
+ "bincode",
+ "candid",
+ "ic-cdk",
+ "ic-stable-structures",
+ "ree-exchange-sdk-macro",
+ "ree-types",
+ "serde",
+ "serde_bytes",
+]
+
+[[package]]
+name = "ree-exchange-sdk-macro"
+version = "0.8.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.104",
+]
+
+[[package]]
+name = "ree-types"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -458,20 +481,10 @@ dependencies = [
  "hex",
  "ic-cdk",
  "ic-stable-structures",
- "ree-exchange-sdk-macro",
  "serde",
  "serde_bytes",
  "serde_json",
  "thiserror",
-]
-
-[[package]]
-name = "ree-exchange-sdk-macro"
-version = "0.7.1"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.104",
 ]
 
 [[package]]

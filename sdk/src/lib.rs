@@ -2,17 +2,14 @@
 //!
 //! # Example
 //! ```rust
-//! use candid::{CandidType, Deserialize};
+//! use self::exchange::*;
+//! use candid::CandidType;
 //! use ic_cdk::{query, update};
 //! use ic_stable_structures::{Storable, storable::Bound};
-//! use ree_exchange_sdk::{
-//!     prelude::*,
-//!     {CoinBalance, Txid, Utxo},
-//! };
-//! use serde::Serialize;
+//! use ree_exchange_sdk::{prelude::*, types::*};
+//! use serde::{Deserialize, Serialize};
 //!
-//! /// The state stored in the pool.
-//! #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+//! #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
 //! pub struct DummyPoolState {
 //!     pub txid: Txid,
 //!     pub nonce: u64,
@@ -22,25 +19,26 @@
 //!     pub attributes: String,
 //! }
 //!
-//! /// The state must implement the `Storable` trait
 //! impl Storable for DummyPoolState {
 //!     const BOUND: Bound = Bound::Unbounded;
 //!
 //!     fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
-//!         let bytes = bincode::serialize(&self).unwrap();
+//!         let mut bytes = vec![];
+//!         let _ = ciborium::ser::into_writer(self, &mut bytes);
 //!         std::borrow::Cow::Owned(bytes)
 //!     }
 //!
 //!     fn into_bytes(self) -> Vec<u8> {
-//!         bincode::serialize(&self).unwrap();
+//!         let mut bytes = vec![];
+//!         let _ = ciborium::ser::into_writer(&self, &mut bytes);
+//!         bytes
 //!     }
 //!
 //!     fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
-//!         bincode::deserialize(bytes.as_ref()).unwrap()
+//!         ciborium::de::from_reader(bytes.as_ref()).expect("failed to decode Pool")
 //!     }
 //! }
 //!
-//! /// The state view must implement the `StateView` trait
 //! impl StateView for DummyPoolState {
 //!     fn inspect_state(&self) -> StateInfo {
 //!         StateInfo {
@@ -54,7 +52,6 @@
 //!     }
 //! }
 //!
-//! /// Entry point for the exchange.
 //! #[exchange]
 //! pub mod exchange {
 //!     use super::*;
@@ -81,434 +78,527 @@
 //!         }
 //!     }
 //!
-//!     /// This is optional
+//!     // This is optional
 //!     #[hook]
 //!     impl Hook for DummyPools {
-//!         /// This function is called when a new block is received, before any processing.
-//!         fn on_block_received(_args: NewBlockInfo) {}
+//!         // This function is called when a new block is received, before any processing.
+//!         fn pre_new_block(_args: NewBlockInfo) {}
 //!
-//!         /// This function is called when a transaction is dropped from the mempool.
-//!         fn on_state_reverted(_address: String, _txid: Txid) {}
+//!         // This function is called when a transaction is dropped from the mempool.
+//!         fn on_tx_rollbacked(_address: String, _txid: Txid, _reason: String) {}
 //!
-//!         /// This function is called when a transaction is confirmed in a block.
-//!         fn on_state_confirmed(_address: String, _txid: Txid, _block: Block) {}
+//!         // This function is called when a transaction is confirmed in a block.
+//!         fn on_tx_confirmed(_address: String, _txid: Txid, _block: Block) {}
 //!
-//!         /// This function is called when a transaction reaches the finalize threshold.
-//!         fn on_state_finalized(_address: String, _txid: Txid, _block: Block) {}
+//!         // This function is called when a transaction reaches the finalize threshold.
+//!         fn on_tx_finalized(_address: String, _txid: Txid, _block: Block) {}
 //!
-//!         /// This function is called after a new block is processed.
-//!         fn on_block_processed(_args: NewBlockInfo) {}
+//!         // This function is called after a new block is processed.
+//!         fn post_new_block(_args: NewBlockInfo) {}
 //!     }
 //!
-//!     #[update]
-//!     pub fn new_pool(args: Metadata) {
-//!         let pool = Pool::new(args.clone());
-//!         DummyPools::insert(pool.clone());
-//!     }
-//!
-//!     // returns essential pool information so the client could construct a PSBT
-//!     #[query]
-//!     pub fn pre_swap(addr: String) -> Option<StateInfo> {
-//!         DummyPools::get(&addr).and_then(|pool| {
-//!             pool.states()
-//!                 .iter()
-//!                 .map(|s| s.inspect_state())
-//!                 .last()
-//!                 .clone()
-//!         })
-//!     }
-//!
+//!     // `swap` is the action function that will be called by the REE Orchestrator
+//!     // All actions should return an `ActionResult<S>` where `S` is the pool state of `Pools`.
+//!     // The SDK will automatically commit this state to the IC stable memory.
 //!     #[action(name = "swap")]
-//!     pub async fn execute_swap(args: ExecuteTxArgs) -> ExecuteTxResponse {
-//!         let mut psbt = args.psbt()?;
-//!         // sign psbt
-//!         Ok(psbt.serialize_hex())
+//!     pub async fn execute_swap(
+//!         psbt: &mut bitcoin::Psbt,
+//!         args: ActionArgs,
+//!     ) -> ActionResult<DummyPoolState> {
+//!         let pool = DummyPools::get(&args.intention.pool_address)
+//!             .ok_or_else(|| format!("Pool not found: {}", args.intention.pool_address))?;
+//!         let mut state = pool.last_state().cloned().unwrap_or_default();
+//!         // do some checks...
+//!         state.nonce = state.nonce + 1;
+//!         state.txid = args.txid.clone();
+//!         // if all check passes, invoke the chain-key API to sign the PSBT
+//!         ree_exchange_sdk::schnorr::sign_p2tr_in_psbt(
+//!             psbt,
+//!             &state.utxos,
+//!             DummyPools::network(),
+//!             pool.metadata().key_derivation_path.clone(),
+//!         )
+//!         .await
+//!         .map_err(|e| format!("Failed to sign PSBT: {}", e))?;
+//!         Ok(state)
 //!     }
 //! }
+//!
+//! #[update]
+//! pub fn new_pool(args: Metadata) {
+//!     let pool = Pool::new(args.clone());
+//!     DummyPools::insert(pool);
+//! }
+//!
+//! #[query]
+//! pub fn pre_swap(addr: String) -> Option<StateInfo> {
+//!     DummyPools::get(&addr).and_then(|pool| pool.last_state().map(|s| s.inspect_state()))
+//! }
+//!
+//! ic_cdk::export_candid!();
 //!```
 //!
-extern crate alloc;
 
-use alloc::str::FromStr;
-use candid::CandidType;
-use serde::{Deserialize, Serialize};
-
-mod coin_id;
-pub mod exchange_interfaces;
-mod intention;
-#[doc(hidden)]
-pub mod orchestrator_interfaces;
-pub mod psbt;
-mod pubkey;
 #[doc(hidden)]
 pub mod reorg;
 pub mod schnorr;
-mod txid;
-
-pub use bitcoin;
-pub use coin_id::CoinId;
-pub use ic_cdk;
-pub use intention::*;
-pub use pubkey::Pubkey;
-pub use txid::{TxRecord, Txid};
-
 pub mod prelude {
-    pub use crate::exchange_interfaces::*;
+    pub use crate::*;
     pub use ree_exchange_sdk_macro::*;
 }
 
-/// The CoinBalance struct represents a balance of a specific coin type.
-#[derive(
-    CandidType, Copy, Clone, Debug, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord,
-)]
-pub struct CoinBalance {
-    pub id: CoinId,
-    pub value: u128,
+use crate::types::{
+    CoinBalance, Intention, IntentionSet, Pubkey, TxRecord, Txid, Utxo, exchange_interfaces::*,
+};
+use candid::CandidType;
+use ic_stable_structures::{
+    BTreeMap, DefaultMemoryImpl, Storable,
+    memory_manager::{MemoryId, MemoryManager, VirtualMemory},
+    storable::Bound,
+};
+use serde::{Deserialize, Serialize};
+
+/// essential types of REE
+pub use ree_types as types;
+
+#[doc(hidden)]
+pub type Memory = VirtualMemory<DefaultMemoryImpl>;
+#[doc(hidden)]
+pub type BlockStorage = BTreeMap<u32, NewBlockInfo, Memory>;
+#[doc(hidden)]
+pub type TransactionStorage = BTreeMap<(Txid, bool), TxRecord, Memory>;
+#[doc(hidden)]
+pub type PoolStorage<S> = BTreeMap<String, Pool<S>, Memory>;
+
+/// The network enum defines the networks supported by the exchange.
+#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Copy)]
+pub enum Network {
+    Bitcoin,
+    Testnet4,
 }
 
-/// The CoinBalances struct is a collection of CoinBalance objects.
-#[derive(CandidType, Eq, PartialEq, Clone, Debug, Deserialize, Serialize)]
-pub struct CoinBalances(Vec<CoinBalance>);
-
-/// The Bitcoin UTXO with Runes coin balances.
-#[derive(CandidType, Eq, PartialEq, Clone, Debug, Deserialize, Serialize)]
-pub struct Utxo {
-    pub txid: Txid,
-    pub vout: u32,
-    pub coins: CoinBalances,
-    pub sats: u64,
+impl Into<crate::types::bitcoin::Network> for Network {
+    fn into(self) -> crate::types::bitcoin::Network {
+        match self {
+            Network::Bitcoin => crate::types::bitcoin::Network::Bitcoin,
+            Network::Testnet4 => crate::types::bitcoin::Network::Testnet4,
+        }
+    }
 }
 
-impl Utxo {
-    pub fn try_from(
-        outpoint: impl AsRef<str>,
-        coins: CoinBalances,
-        sats: u64,
+#[doc(hidden)]
+pub fn ensure_access<P: Pools>() -> Result<(), String> {
+    match P::network() {
+        Network::Bitcoin => crate::types::orchestrator_interfaces::ensure_orchestrator(),
+        Network::Testnet4 => crate::types::orchestrator_interfaces::ensure_testnet4_orchestrator(),
+    }
+}
+
+/// The parameters for the hook `on_state_confirmed` and `on_state_finalized`
+#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct Block {
+    pub height: u32,
+    pub hash: String,
+    pub timestamp: u64,
+}
+
+/// The metadata for the pool, which includes the key, name, and address.
+/// Typically, the key and address should be generated by the IC chain-key.
+#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct Metadata {
+    pub key: Pubkey,
+    pub key_derivation_path: Vec<Vec<u8>>,
+    pub name: String,
+    pub address: String,
+}
+
+impl Metadata {
+    /// Creates a new metadata instance with the given name and key_derivation_path.
+    /// The key and address are generated based on the network.
+    pub async fn generate<P: Pools>(
+        name: String,
+        key_derivation_path: Vec<Vec<u8>>,
     ) -> Result<Self, String> {
-        let parts = outpoint.as_ref().split(':').collect::<Vec<_>>();
-        let txid = parts
-            .get(0)
-            .map(|s| Txid::from_str(s).map_err(|_| "Invalid txid in outpoint."))
-            .transpose()?
-            .ok_or("Invalid txid in outpoint.")?;
-        let vout = parts
-            .get(1)
-            .map(|s| s.parse::<u32>().map_err(|_| "Invalid vout in outpoint."))
-            .transpose()?
-            .ok_or("Invalid vout in outpoint")?;
-        Ok(Utxo {
-            txid,
-            vout,
-            coins,
-            sats,
+        let (key, _, address) =
+            crate::schnorr::request_p2tr_address(key_derivation_path.clone(), P::network())
+                .await
+                .map_err(|e| format!("Failed to generate pool address: {}", e))?;
+        Ok(Self {
+            key,
+            key_derivation_path,
+            name,
+            address: address.to_string(),
         })
     }
+}
 
-    pub fn outpoint(&self) -> String {
-        format!("{}:{}", self.txid, self.vout)
+/// The essential information about the pool state.
+#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct StateInfo {
+    pub nonce: u64,
+    pub txid: Txid,
+    pub coin_reserved: Vec<CoinBalance>,
+    pub btc_reserved: u64,
+    pub utxos: Vec<Utxo>,
+    pub attributes: String,
+}
+
+/// The parameter for the action function, which is used to execute a transaction in the exchange.
+#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct ActionArgs {
+    pub txid: Txid,
+    pub initiator_address: String,
+    pub intention: Intention,
+    pub other_intentions: Vec<Intention>,
+    pub unconfirmed_tx_count: usize,
+}
+
+impl From<ExecuteTxArgs> for ActionArgs {
+    fn from(args: ExecuteTxArgs) -> Self {
+        let ExecuteTxArgs {
+            psbt_hex: _,
+            txid,
+            intention_set,
+            intention_index,
+            zero_confirmed_tx_queue_length,
+        } = args;
+        let IntentionSet {
+            mut intentions,
+            initiator_address,
+            tx_fee_in_sats: _,
+        } = intention_set;
+        let intention = intentions.swap_remove(intention_index as usize);
+        Self {
+            txid,
+            initiator_address,
+            intention,
+            other_intentions: intentions,
+            unconfirmed_tx_count: zero_confirmed_tx_queue_length as usize,
+        }
     }
 }
 
-impl CoinBalances {
-    pub fn new() -> Self {
-        Self(vec![])
+/// The result type for actions in the exchange, which can either be successful with a state or an error message.
+pub type ActionResult<S> = Result<S, String>;
+
+/// User must implement the `StateView` trait for customized state to provide this information.
+pub trait StateView {
+    fn inspect_state(&self) -> StateInfo;
+}
+
+/// The concrete type stored in the IC stable memory.
+/// The SDK will automatically manage the pool state `S`.
+#[derive(CandidType, Debug, Deserialize, Serialize)]
+pub struct Pool<S> {
+    metadata: Metadata,
+    states: Vec<S>,
+}
+
+impl Storable for Metadata {
+    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+        let bytes = bincode::serialize(self).unwrap();
+        std::borrow::Cow::Owned(bytes)
     }
-    //
-    pub fn iter(&self) -> impl Iterator<Item = &CoinBalance> {
-        self.0.iter()
+
+    fn into_bytes(self) -> Vec<u8> {
+        bincode::serialize(&self).unwrap()
     }
-    //
-    pub fn add_coin(&mut self, coin: &CoinBalance) {
-        let mut found = false;
-        for existing_coin in &mut self.0 {
-            if existing_coin.id == coin.id {
-                existing_coin.value += coin.value;
-                found = true;
-                break;
-            }
+
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        bincode::deserialize(bytes.as_ref()).unwrap()
+    }
+
+    const BOUND: Bound = Bound::Unbounded;
+}
+
+impl<S> Storable for Pool<S>
+where
+    S: Storable,
+{
+    const BOUND: Bound = Bound::Unbounded;
+
+    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+        let metadata_bytes = self.metadata.to_bytes();
+        let metadata_bytes_len = metadata_bytes.as_ref().len();
+        let mut bytes = vec![];
+        bytes.extend_from_slice(&(metadata_bytes_len as u32).to_le_bytes());
+        bytes.extend_from_slice(metadata_bytes.as_ref());
+        bytes.extend_from_slice(&(self.states.len() as u32).to_le_bytes());
+        for state in self.states.iter() {
+            let state_bytes = state.to_bytes();
+            let state_bytes_len = state_bytes.as_ref().len();
+            bytes.extend_from_slice(&(state_bytes_len as u32).to_le_bytes());
+            bytes.extend_from_slice(state_bytes.as_ref());
         }
-        if !found {
-            self.0.push(coin.clone());
+        std::borrow::Cow::Owned(bytes)
+    }
+
+    fn into_bytes(self) -> Vec<u8> {
+        let metadata_bytes = self.metadata.to_bytes();
+        let metadata_bytes_len = metadata_bytes.as_ref().len();
+        let mut bytes = vec![];
+        bytes.extend_from_slice(&(metadata_bytes_len as u32).to_le_bytes());
+        bytes.extend_from_slice(metadata_bytes.as_ref());
+        bytes.extend_from_slice(&(self.states.len() as u32).to_le_bytes());
+        for state in self.states.into_iter() {
+            let state_bytes = state.to_bytes();
+            let state_bytes_len = state_bytes.as_ref().len();
+            bytes.extend_from_slice(&(state_bytes_len as u32).to_le_bytes());
+            bytes.extend_from_slice(state_bytes.as_ref());
+        }
+        bytes
+    }
+
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        let bytes = bytes.into_owned();
+        let metadata_len = u32::from_le_bytes(bytes[0..4].try_into().unwrap()) as usize;
+        let metadata_bytes = &bytes[4..4 + metadata_len];
+        let metadata = Metadata::from_bytes(metadata_bytes.into());
+        let mut states = Vec::new();
+        let states_len = u32::from_le_bytes(
+            bytes[4 + metadata_len..8 + metadata_len]
+                .try_into()
+                .unwrap(),
+        ) as usize;
+        let mut offset = 8 + metadata_len;
+        for _ in 0..states_len {
+            let state_len =
+                u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap()) as usize;
+            offset += 4;
+            let state_bytes = &bytes[offset..offset + state_len];
+            offset += state_len;
+            let state = S::from_bytes(state_bytes.into());
+            states.push(state);
+        }
+        Self { metadata, states }
+    }
+}
+
+impl<S> Pool<S> {
+    /// Creates a new pool with the given metadata.
+    pub fn new(metadata: Metadata) -> Self {
+        Self {
+            metadata,
+            states: Vec::new(),
         }
     }
-    //
-    pub fn subtract_coin(&mut self, coin: &CoinBalance) -> bool {
-        for i in 0..self.0.len() {
-            if self.0[i].id == coin.id {
-                if self.0[i].value >= coin.value {
-                    self.0[i].value -= coin.value;
-                    if self.0[i].value == 0 {
-                        self.0.remove(i);
+
+    /// Returns the metadata of the pool.
+    pub fn metadata(&self) -> &Metadata {
+        &self.metadata
+    }
+
+    /// Returns a reference of the last state of the pool.
+    pub fn last_state(&self) -> Option<&S> {
+        self.states.last()
+    }
+
+    /// Returns the states of the pool.
+    pub fn states(&self) -> &Vec<S> {
+        &self.states
+    }
+
+    /// Returns a mutable reference to the states of the pool.
+    pub fn states_mut(&mut self) -> &mut Vec<S> {
+        &mut self.states
+    }
+}
+
+#[doc(hidden)]
+pub trait ReePool<S> {
+    fn get_pool_info(&self) -> PoolInfo;
+
+    fn get_pool_basic(&self) -> PoolBasic;
+
+    fn rollback(&mut self, txid: Txid) -> Result<(), String>;
+
+    fn finalize(&mut self, txid: Txid) -> Result<(), String>;
+}
+
+#[doc(hidden)]
+impl<S> ReePool<S> for Pool<S>
+where
+    S: Storable + StateView,
+{
+    fn get_pool_basic(&self) -> PoolBasic {
+        PoolBasic {
+            name: self.metadata.name.clone(),
+            address: self.metadata.address.clone(),
+        }
+    }
+
+    fn get_pool_info(&self) -> PoolInfo {
+        let metadata: Metadata = self.metadata.clone();
+        let Metadata {
+            key,
+            key_derivation_path,
+            name,
+            address,
+        } = metadata;
+        let state = self
+            .states
+            .last()
+            .map(|s| s.inspect_state())
+            .unwrap_or(StateInfo {
+                txid: Txid::zero(),
+                nonce: 0,
+                coin_reserved: vec![],
+                btc_reserved: 0,
+                utxos: vec![],
+                attributes: "{}".to_string(),
+            });
+        let StateInfo {
+            txid: _,
+            nonce,
+            coin_reserved,
+            btc_reserved,
+            utxos,
+            attributes,
+        } = state;
+        PoolInfo {
+            key,
+            key_derivation_path,
+            name,
+            address,
+            nonce,
+            coin_reserved,
+            btc_reserved,
+            utxos,
+            attributes,
+        }
+    }
+
+    fn rollback(&mut self, txid: Txid) -> Result<(), String> {
+        let idx = self
+            .states
+            .iter()
+            .position(|state| state.inspect_state().txid == txid)
+            .ok_or("txid not found".to_string())?;
+        if idx == 0 {
+            self.states.clear();
+            return Ok(());
+        }
+        self.states.truncate(idx);
+        Ok(())
+    }
+
+    fn finalize(&mut self, txid: Txid) -> Result<(), String> {
+        let idx = self
+            .states
+            .iter()
+            .position(|state| state.inspect_state().txid == txid)
+            .ok_or("txid not found".to_string())?;
+        if idx == 0 {
+            return Ok(());
+        }
+        self.states.rotate_left(idx);
+        self.states.truncate(self.states.len() - idx);
+        Ok(())
+    }
+}
+
+/// The Pools trait defines the interface for the exchange pools, must be marked as `#[ree_exchange_sdk::pools]`.
+pub trait Pools {
+    /// The concrete type of the pool state.
+    type State: Storable + StateView;
+
+    /// The memory ID for the pool storage.
+    const POOL_MEMORY: u8;
+
+    /// The memory ID for the block storage.
+    const BLOCK_MEMORY: u8;
+
+    /// The memory ID for the transaction storage.
+    const TRANSACTION_MEMORY: u8;
+
+    /// useful for ensuring that the exchange is running on the correct network.
+    fn network() -> Network;
+
+    /// Returns the state finalize threshold, useful for determining when a transaction is considered finalized.
+    fn finalize_threshold() -> u32 {
+        60
+    }
+}
+
+/// A set of hooks that can be implemented to respond to various events in the exchange lifecycle.
+/// It must be implemented over the `Pools` type and marked as `#[ree_exchange_sdk::hook]`.
+pub trait Hook {
+    /// This function is called when a new block is received, before any processing.
+    fn pre_new_block(_args: NewBlockInfo) {}
+
+    /// This function is called when a transaction is dropped from the mempool.
+    fn on_tx_rollbacked(_address: String, _txid: Txid, _reason: String) {}
+
+    /// This function is called when a transaction is confirmed in a block.
+    fn on_tx_confirmed(_address: String, _txid: Txid, _block: Block) {}
+
+    /// This function is called when a transaction reaches the finalize threshold.
+    fn on_tx_finalized(_address: String, _txid: Txid, _block: Block) {}
+
+    /// This function is called after a new block is processed.
+    fn post_new_block(_args: NewBlockInfo) {}
+}
+
+/// A trait for accessing the pool storage.
+/// The user-defined `Pools` type will automatically implement this trait.
+pub trait PoolStorageAccess<P: Pools> {
+    fn get(address: &String) -> Option<Pool<P::State>>;
+
+    fn insert(pool: Pool<P::State>);
+
+    fn remove(address: &String) -> Option<Pool<P::State>>;
+
+    fn iter() -> iter::PoolIterator<P>;
+}
+
+#[doc(hidden)]
+pub fn iterator<P>() -> iter::PoolIterator<P>
+where
+    P: Pools,
+{
+    let mm = MemoryManager::init(DefaultMemoryImpl::default());
+    let vm = mm.get(MemoryId::new(P::POOL_MEMORY));
+    iter::PoolIterator {
+        inner: PoolStorage::<P::State>::init(vm),
+        cursor: None,
+    }
+}
+
+#[doc(hidden)]
+pub mod iter {
+    pub struct PoolIterator<P: super::Pools> {
+        pub(crate) inner: super::PoolStorage<P::State>,
+        pub(crate) cursor: Option<String>,
+    }
+
+    impl<P> std::iter::Iterator for PoolIterator<P>
+    where
+        P: super::Pools,
+    {
+        type Item = (String, super::Pool<P::State>);
+
+        fn next(&mut self) -> Option<Self::Item> {
+            match self.cursor {
+                Some(ref cursor) => match self
+                    .inner
+                    .iter_from_prev_key(cursor)
+                    .next()
+                    .map(|e| e.into_pair())
+                {
+                    Some((k, v)) => {
+                        self.cursor = Some(k.clone());
+                        Some((k, v))
                     }
-                    return true;
-                } else {
-                    return false; // Not enough value to remove
-                }
+                    None => None,
+                },
+                None => match self.inner.iter().next().map(|e| e.into_pair()) {
+                    Some((k, v)) => {
+                        self.cursor = Some(k.clone());
+                        Some((k, v))
+                    }
+                    None => None,
+                },
             }
         }
-        false // Coin not found
-    }
-    //
-    pub fn value_of(&self, coin_id: &CoinId) -> u128 {
-        for coin in &self.0 {
-            if coin.id == *coin_id {
-                return coin.value;
-            }
-        }
-        0
-    }
-    //
-    pub fn add_coins(&mut self, coins: &CoinBalances) {
-        for coin in &coins.0 {
-            self.add_coin(coin);
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use core::str::FromStr;
-
-    use super::*;
-
-    #[test]
-    fn test_ree_instruction_json() {
-        let instruction_set_1 = IntentionSet {
-            initiator_address: "bc1q8anrrgczju8zn02ww06slsfh9grm07de7r9e3k".to_string(),
-            tx_fee_in_sats: 360,
-            intentions: vec![Intention {
-                exchange_id: "RICH_SWAP".to_string(),
-                action: "add_liquidity".to_string(),
-                action_params: String::new(),
-                pool_address: "bc1pxtmh763568jd8pz9m8wekt2yrqyntqv2wk465mgpzlr9f2aq2vqs52l0hq"
-                    .to_string(),
-                nonce: 1,
-                pool_utxo_spent: vec![],
-                pool_utxo_received: vec![],
-                input_coins: vec![
-                    InputCoin {
-                        from: "bc1q8anrrgczju8zn02ww06slsfh9grm07de7r9e3k".to_string(),
-                        coin: CoinBalance {
-                            id: CoinId::btc(),
-                            value: 23_000,
-                        },
-                    },
-                    InputCoin {
-                        from: "bc1q8anrrgczju8zn02ww06slsfh9grm07de7r9e3k".to_string(),
-                        coin: CoinBalance {
-                            id: CoinId::from_str("868703:142").unwrap(),
-                            value: 959_000_000,
-                        },
-                    },
-                ],
-                output_coins: vec![],
-            }],
-        };
-        println!(
-            "Add liquidity sample instruction: {}\n",
-            serde_json::to_string(&instruction_set_1).unwrap()
-        );
-        //
-        //
-        //
-        let instruction_set_2 = IntentionSet {
-            initiator_address: "bc1qvwvcttn5dtxleu73uuyh8w759gukjr22l7z503".to_string(),
-            tx_fee_in_sats: 330,
-            intentions: vec![Intention {
-                exchange_id: "RICH_SWAP".to_string(),
-                action: "withdraw_liquidity".to_string(),
-                action_params: String::new(),
-                pool_address: "bc1pu3pv54uxfps00a8ydle67fd3rktz090l07lyg7wadurq4h0lpjhqnet990"
-                    .to_string(),
-                nonce: 11,
-                pool_utxo_spent: vec![
-                    "71c9aa9a015e0fcd5cbd6354fbd61c290f9c0a77cecb920df1f0917e7ddc75b7:0"
-                        .to_string(),
-                ],
-                pool_utxo_received: vec![],
-                input_coins: vec![],
-                output_coins: vec![
-                    OutputCoin {
-                        to: "bc1qvwvcttn5dtxleu73uuyh8w759gukjr22l7z503".to_string(),
-                        coin: CoinBalance {
-                            id: CoinId::btc(),
-                            value: 10_124,
-                        },
-                    },
-                    OutputCoin {
-                        to: "bc1qvwvcttn5dtxleu73uuyh8w759gukjr22l7z503".to_string(),
-                        coin: CoinBalance {
-                            id: CoinId::from_str("840106:129").unwrap(),
-                            value: 7_072_563,
-                        },
-                    },
-                ],
-            }],
-        };
-        println!(
-            "Withdraw liquidity sample instruction: {}\n",
-            serde_json::to_string(&instruction_set_2).unwrap()
-        );
-        //
-        //
-        //
-        let instruction_set_3 = IntentionSet {
-            initiator_address: "bc1plvgrpk6mxwyppvqa5j275ujatn8qgs2dcm8m3r2w7sfkn395x6us9l5qdj"
-                .to_string(),
-            tx_fee_in_sats: 340,
-            intentions: vec![Intention {
-                exchange_id: "RICH_SWAP".to_string(),
-                action: "swap".to_string(),
-                action_params: String::new(),
-                pool_address: "bc1ptnxf8aal3apeg8r4zysr6k2mhadg833se2dm4nssl7drjlqdh2jqa4tk3p"
-                    .to_string(),
-                nonce: 5,
-                pool_utxo_spent: vec![
-                    "17616a9d2258c41bea2175e64ecc2e5fc45ae18be5c9003e058cb0bb85301fd8:0"
-                        .to_string(),
-                ],
-                pool_utxo_received: vec![],
-                input_coins: vec![InputCoin {
-                    from: "bc1plvgrpk6mxwyppvqa5j275ujatn8qgs2dcm8m3r2w7sfkn395x6us9l5qdj"
-                        .to_string(),
-                    coin: CoinBalance {
-                        id: CoinId::from_str("840000:846").unwrap(),
-                        value: 10_000_000,
-                    },
-                }],
-                output_coins: vec![OutputCoin {
-                    to: "bc1plvgrpk6mxwyppvqa5j275ujatn8qgs2dcm8m3r2w7sfkn395x6us9l5qdj"
-                        .to_string(),
-                    coin: CoinBalance {
-                        id: CoinId::btc(),
-                        value: 25_523,
-                    },
-                }],
-            }],
-        };
-        println!(
-            "Runes swap btc sample instruction: {}\n",
-            serde_json::to_string(&instruction_set_3).unwrap()
-        );
-        //
-        //
-        //
-        let instruction_set_4 = IntentionSet {
-            initiator_address: "bc1plvgrpk6mxwyppvqa5j275ujatn8qgs2dcm8m3r2w7sfkn395x6us9l5qdj"
-                .to_string(),
-            tx_fee_in_sats: 410,
-            intentions: vec![
-                Intention {
-                    exchange_id: "RICH_SWAP".to_string(),
-                    action: "swap".to_string(),
-                    action_params: String::new(),
-                    pool_address: "bc1ptnxf8aal3apeg8r4zysr6k2mhadg833se2dm4nssl7drjlqdh2jqa4tk3p"
-                        .to_string(),
-                    nonce: 5,
-                    pool_utxo_spent: vec![
-                        "17616a9d2258c41bea2175e64ecc2e5fc45ae18be5c9003e058cb0bb85301fd8:0"
-                            .to_string(),
-                    ],
-                    pool_utxo_received: vec![],
-                    input_coins: vec![InputCoin {
-                        from: "bc1plvgrpk6mxwyppvqa5j275ujatn8qgs2dcm8m3r2w7sfkn395x6us9l5qdj"
-                            .to_string(),
-                        coin: CoinBalance {
-                            id: CoinId::from_str("840000:846").unwrap(),
-                            value: 10_000_000,
-                        },
-                    }],
-                    output_coins: vec![OutputCoin {
-                        to: "bc1pu3pv54uxfps00a8ydle67fd3rktz090l07lyg7wadurq4h0lpjhqnet990"
-                            .to_string(),
-                        coin: CoinBalance {
-                            id: CoinId::btc(),
-                            value: 25_523,
-                        },
-                    }],
-                },
-                Intention {
-                    exchange_id: "RICH_SWAP".to_string(),
-                    action: "swap".to_string(),
-                    action_params: String::new(),
-                    pool_address: "bc1pu3pv54uxfps00a8ydle67fd3rktz090l07lyg7wadurq4h0lpjhqnet990"
-                        .to_string(),
-                    nonce: 9,
-                    pool_utxo_spent: vec![
-                        "9c3590a30d7b5d27f264a295aec6ed15c83618c152c89b28b81a460fcbb66514:1"
-                            .to_string(),
-                    ],
-                    pool_utxo_received: vec![],
-                    input_coins: vec![InputCoin {
-                        from: "bc1pu3pv54uxfps00a8ydle67fd3rktz090l07lyg7wadurq4h0lpjhqnet990"
-                            .to_string(),
-                        coin: CoinBalance {
-                            id: CoinId::btc(),
-                            value: 25_523,
-                        },
-                    }],
-                    output_coins: vec![OutputCoin {
-                        to: "bc1plvgrpk6mxwyppvqa5j275ujatn8qgs2dcm8m3r2w7sfkn395x6us9l5qdj"
-                            .to_string(),
-                        coin: CoinBalance {
-                            id: CoinId::from_str("840106:129").unwrap(),
-                            value: 672_563,
-                        },
-                    }],
-                },
-            ],
-        };
-        println!(
-            "Runes swap runes sample instruction: {}\n",
-            serde_json::to_string(&instruction_set_4).unwrap()
-        );
-    }
-
-    #[test]
-    /// Test the CoinBalances struct
-    fn test_coin_balances() {
-        let mut balances = CoinBalances::new();
-        let coin1 = CoinBalance {
-            id: CoinId::btc(),
-            value: 1000,
-        };
-        let coin2 = CoinBalance {
-            id: CoinId::from_str("840106:129").unwrap(),
-            value: 500,
-        };
-
-        balances.add_coin(&coin1);
-        balances.add_coin(&coin2);
-
-        assert_eq!(balances.value_of(&CoinId::btc()), 1000);
-        assert_eq!(
-            balances.value_of(&CoinId::from_str("840106:129").unwrap()),
-            500
-        );
-
-        let coin3 = CoinBalance {
-            id: CoinId::btc(),
-            value: 200,
-        };
-        balances.add_coin(&coin3);
-        assert_eq!(balances.value_of(&CoinId::btc()), 1200);
-
-        let coin4 = CoinBalance {
-            id: CoinId::from_str("840106:129").unwrap(),
-            value: 600,
-        };
-        assert!(!balances.subtract_coin(&coin4));
-
-        let coin4 = CoinBalance {
-            id: CoinId::from_str("840106:129").unwrap(),
-            value: 500,
-        };
-        assert!(balances.subtract_coin(&coin4));
-        assert_eq!(
-            balances.value_of(&CoinId::from_str("840106:129").unwrap()),
-            0
-        );
-
-        println!("Coin Balances: {:?}", balances);
     }
 }

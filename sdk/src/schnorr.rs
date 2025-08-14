@@ -1,5 +1,13 @@
-use crate::Pubkey;
-use bitcoin::{key::TapTweak, secp256k1::Secp256k1};
+use crate::Network;
+use crate::types::{
+    Pubkey, Utxo,
+    bitcoin::{
+        self, OutPoint, TapSighashType, Witness,
+        psbt::Psbt,
+        sighash::{Prevouts, SighashCache},
+        {key::TapTweak, secp256k1::Secp256k1},
+    },
+};
 use candid::{CandidType, Principal};
 use ic_cdk::api::management_canister::schnorr::{
     self, SchnorrAlgorithm, SchnorrKeyId, SchnorrPublicKeyArgument,
@@ -18,13 +26,13 @@ struct ManagementCanisterSignatureRequest {
 }
 
 #[derive(Eq, PartialEq, Debug, CandidType, Serialize)]
-pub enum SignWithSchnorrAux {
+enum SignWithSchnorrAux {
     #[serde(rename = "bip341")]
     Bip341(SignWithBip341Aux),
 }
 
 #[derive(Eq, PartialEq, Debug, CandidType, Serialize)]
-pub struct SignWithBip341Aux {
+struct SignWithBip341Aux {
     pub merkle_root_hash: ByteBuf,
 }
 
@@ -39,25 +47,16 @@ fn mgmt_canister_id() -> CanisterId {
     CanisterId::from_text(MGMT_CANISTER_ID).unwrap()
 }
 
-/// Validates that the schnorr key name is either "test_key_1" or "key_1"
-pub fn validate_schnorr_key_name(key_name: &str) -> Result<(), String> {
-    match key_name {
-        "test_key_1" | "key_1" => Ok(()),
-        _ => Err(format!(
-            "Invalid schnorr key name '{}'. Must be either 'test_key_1' or 'key_1'",
-            key_name
-        )),
-    }
-}
-
-pub async fn schnorr_sign(
+pub async fn sign_p2tr(
     message: Vec<u8>,
-    schnorr_key_name: String,
+    network: Network,
     derivation_path: Vec<Vec<u8>>,
     merkle_root: Option<Vec<u8>>,
 ) -> Result<Vec<u8>, String> {
-    validate_schnorr_key_name(&schnorr_key_name)?;
-
+    let key_name = match network {
+        Network::Bitcoin => "key_1",
+        Network::Testnet4 => "test_key_1",
+    };
     let merkle_root_hash = merkle_root
         .map(|bytes| {
             if bytes.len() == 32 || bytes.is_empty() {
@@ -79,7 +78,7 @@ pub async fn schnorr_sign(
         derivation_path,
         key_id: SchnorrKeyId {
             algorithm: SchnorrAlgorithm::Bip340secp256k1,
-            name: schnorr_key_name,
+            name: key_name.to_string(),
         },
         aux,
     };
@@ -94,21 +93,14 @@ pub async fn schnorr_sign(
     Ok(reply.signature)
 }
 
-pub async fn sign_prehash_with_schnorr(
+pub async fn sign_p2tr_prehashed(
     digest: impl AsRef<[u8; 32]>,
-    schnorr_key_name: String,
+    network: Network,
     derivation_path: Vec<Vec<u8>>,
 ) -> Result<Vec<u8>, String> {
-    validate_schnorr_key_name(&schnorr_key_name)?;
-
-    let signature = crate::schnorr::schnorr_sign(
-        digest.as_ref().to_vec(),
-        schnorr_key_name,
-        derivation_path,
-        None,
-    )
-    .await
-    .map_err(|e| e.to_string())?;
+    let signature = self::sign_p2tr(digest.as_ref().to_vec(), network, derivation_path, None)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(signature)
 }
 
@@ -119,20 +111,23 @@ pub fn tweak_pubkey_with_empty(untweaked: Pubkey) -> Pubkey {
     Pubkey::from_raw([&[0x00], &raw[..]].concat()).expect("tweaked 33bytes; qed")
 }
 
-// https://internetcomputer.org/docs/references/t-sigs-how-it-works#key-derivation
-pub async fn request_ree_pool_address(
-    schnorr_key_name: &str,
+/// request the IC chain-key API to generate a P2TR address
+/// reference: https://internetcomputer.org/docs/references/t-sigs-how-it-works#key-derivation
+pub async fn request_p2tr_address(
     derivation_path: Vec<Vec<u8>>,
-    network: bitcoin::Network,
+    network: Network,
 ) -> Result<(Pubkey, Pubkey, bitcoin::Address), String> {
-    validate_schnorr_key_name(&schnorr_key_name)?;
-
+    // validate_schnorr_key_name(&schnorr_key_name)?;
+    let key_name = match network {
+        Network::Bitcoin => "key_1",
+        Network::Testnet4 => "test_key_1",
+    };
     let arg = SchnorrPublicKeyArgument {
         canister_id: None,
         derivation_path,
         key_id: SchnorrKeyId {
             algorithm: SchnorrAlgorithm::Bip340secp256k1,
-            name: schnorr_key_name.to_string(),
+            name: key_name.to_string(),
         },
     };
     let res = schnorr::schnorr_public_key(arg)
@@ -141,11 +136,62 @@ pub async fn request_ree_pool_address(
     let mut raw = res.0.public_key.to_vec();
     raw[0] = 0x00;
     let untweaked_pubkey = Pubkey::from_raw(raw).expect("management api error: invalid pubkey");
-
     let tweaked_pubkey = tweak_pubkey_with_empty(untweaked_pubkey.clone());
     let key = bitcoin::key::TweakedPublicKey::dangerous_assume_tweaked(
         tweaked_pubkey.to_x_only_public_key(),
     );
+    let network: bitcoin::Network = network.into();
     let addr = bitcoin::Address::p2tr_tweaked(key, network);
     Ok((untweaked_pubkey, tweaked_pubkey, addr))
+}
+
+fn cmp<'a>(mine: &'a Utxo, outpoint: &OutPoint) -> bool {
+    Into::<bitcoin::Txid>::into(mine.txid) == outpoint.txid && mine.vout == outpoint.vout
+}
+
+/// Signs the PSBT inputs using IC chain-key that match the provided pool inputs with a Taproot key spend signature.
+pub async fn sign_p2tr_in_psbt(
+    psbt: &mut Psbt,
+    pool_inputs: &[Utxo],
+    network: Network,
+    derivation_path: Vec<Vec<u8>>,
+) -> Result<(), String> {
+    let mut cache = SighashCache::new(&psbt.unsigned_tx);
+    let mut prevouts = vec![];
+    for input in psbt.inputs.iter() {
+        let pout = input
+            .witness_utxo
+            .as_ref()
+            .cloned()
+            .ok_or("witness_utxo required".to_string())?;
+        prevouts.push(pout);
+    }
+    for (i, input) in psbt.unsigned_tx.input.iter().enumerate() {
+        let outpoint = &input.previous_output;
+        if let Some(_) = pool_inputs.iter().find(|input| cmp(input, outpoint)) {
+            (i < psbt.inputs.len()).then(|| ()).ok_or(format!(
+                "Input index {i} exceeds available inputs ({})",
+                psbt.inputs.len()
+            ))?;
+            let input = &mut psbt.inputs[i];
+            let sighash = cache
+                .taproot_key_spend_signature_hash(
+                    i,
+                    &Prevouts::All(&prevouts),
+                    TapSighashType::Default,
+                )
+                .expect("couldn't construct taproot sighash");
+            let raw_sig = self::sign_p2tr_prehashed(&sighash, network, derivation_path.clone())
+                .await
+                .map_err(|e| e.to_string())?;
+            let inner_sig = bitcoin::secp256k1::schnorr::Signature::from_slice(&raw_sig)
+                .expect("assert: chain-key schnorr signature is 64-bytes format");
+            let signature = bitcoin::taproot::Signature {
+                signature: inner_sig,
+                sighash_type: TapSighashType::Default,
+            };
+            input.final_script_witness = Some(Witness::p2tr_key_spend(&signature));
+        }
+    }
+    Ok(())
 }
