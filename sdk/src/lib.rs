@@ -97,8 +97,11 @@
 //!         fn post_new_block(_args: NewBlockInfo) {}
 //!     }
 //!
-//!     #[action(name = "swap")]
-//!     pub async fn execute_swap(
+//!     // `demo` is the action function that will be called by the REE Orchestrator
+//!     // All actions should return an `ActionResult<S>` where `S` is the pool state of `Pools`.
+//!     // The SDK will automatically commit this state to the IC stable memory.
+//!     #[action(name = "demo")]
+//!     pub async fn execute_demo(
 //!         psbt: &mut bitcoin::Psbt,
 //!         args: ActionArgs,
 //!     ) -> ActionResult<DummyPoolState> {
