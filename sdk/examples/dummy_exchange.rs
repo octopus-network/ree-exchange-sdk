@@ -102,8 +102,10 @@ pub mod exchange {
 
 #[update]
 pub fn new_pool(name: String) {
-    let metadata = Metadata::<DummyPools>::generate();
-    let pool = Pool::new(args.clone());
+    let metadata = Metadata::<DummyPools>::generate_new(name.clone(), name)
+        .await
+        .expect("Failed to call chain-key API");
+    let pool = Pool::new(metadata);
     DummyPools::insert(pool);
 }
 

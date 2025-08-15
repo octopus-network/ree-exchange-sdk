@@ -9,9 +9,7 @@ use crate::types::{
     },
 };
 use candid::{CandidType, Principal};
-use ic_cdk::api::management_canister::schnorr::{
-    self, SchnorrAlgorithm, SchnorrKeyId, SchnorrPublicKeyArgument,
-};
+use ic_cdk::management_canister::{self, SchnorrAlgorithm, SchnorrKeyId, SchnorrPublicKeyArgs};
 use serde::{Deserialize, Serialize};
 use serde_bytes::ByteBuf;
 
@@ -82,6 +80,7 @@ pub async fn sign_p2tr(
         },
         aux,
     };
+    #[allow(deprecated)]
     let (reply,): (ManagementCanisterSignatureReply,) = ic_cdk::api::call::call_with_payment(
         mgmt_canister_id(),
         "sign_with_schnorr",
@@ -112,7 +111,7 @@ pub fn tweak_pubkey_with_empty(untweaked: Pubkey) -> Pubkey {
 }
 
 /// request the IC chain-key API to generate a P2TR address
-/// reference: https://internetcomputer.org/docs/references/t-sigs-how-it-works#key-derivation
+/// reference: <https://internetcomputer.org/docs/references/t-sigs-how-it-works#key-derivation>
 pub async fn request_p2tr_address(
     derivation_path: Vec<Vec<u8>>,
     network: Network,
@@ -122,7 +121,7 @@ pub async fn request_p2tr_address(
         Network::Bitcoin => "key_1",
         Network::Testnet4 => "test_key_1",
     };
-    let arg = SchnorrPublicKeyArgument {
+    let arg = SchnorrPublicKeyArgs {
         canister_id: None,
         derivation_path,
         key_id: SchnorrKeyId {
@@ -130,10 +129,10 @@ pub async fn request_p2tr_address(
             name: key_name.to_string(),
         },
     };
-    let res = schnorr::schnorr_public_key(arg)
+    let res = management_canister::schnorr_public_key(&arg)
         .await
-        .map_err(|(code, err)| format!("schnorr_public_key failed {code:?} {err:?}"))?;
-    let mut raw = res.0.public_key.to_vec();
+        .map_err(|err| format!("schnorr_public_key failed {:?}", err))?;
+    let mut raw = res.public_key.to_vec();
     raw[0] = 0x00;
     let untweaked_pubkey = Pubkey::from_raw(raw).expect("management api error: invalid pubkey");
     let tweaked_pubkey = tweak_pubkey_with_empty(untweaked_pubkey.clone());
