@@ -125,8 +125,11 @@
 //! }
 //!
 //! #[update]
-//! pub fn new_pool(args: Metadata) {
-//!     let pool = Pool::new(args.clone());
+//! pub fn new_pool(name: String) {
+//!     let metadata = Metadata::<DummyPools>::generate_new(name.clone(), name)
+//!         .await
+//!         .expect("Failed to call chain-key API");
+//!     let pool = Pool::new(metadata);
 //!     DummyPools::insert(pool);
 //! }
 //!
@@ -215,10 +218,33 @@ pub struct Metadata {
 impl Metadata {
     /// Creates a new metadata instance with the given name and key_derivation_path.
     /// The key and address are generated based on the network.
+    #[deprecated(
+        since = "0.8.1",
+        note = "Use `generate_new` instead to create a Metadata instance."
+    )]
     pub async fn generate<P: Pools>(
         name: String,
         key_derivation_path: Vec<Vec<u8>>,
     ) -> Result<Self, String> {
+        let (key, _, address) =
+            crate::schnorr::request_p2tr_address(key_derivation_path.clone(), P::network())
+                .await
+                .map_err(|e| format!("Failed to generate pool address: {}", e))?;
+        Ok(Self {
+            key,
+            key_derivation_path,
+            name,
+            address: address.to_string(),
+        })
+    }
+
+    /// Creates a new metadata instance with the given name and key_derivation_path using IC chain-key API.
+    /// NOTE: the `key_derivation_path` doesn't follow BIP-32, it is a simple string path.
+    pub async fn generate_new<P: Pools>(
+        name: String,
+        key_derivation_path: String,
+    ) -> Result<Self, String> {
+        let key_derivation_path: Vec<Vec<u8>> = vec![key_derivation_path.into_bytes()];
         let (key, _, address) =
             crate::schnorr::request_p2tr_address(key_derivation_path.clone(), P::network())
                 .await

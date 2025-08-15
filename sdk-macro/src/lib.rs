@@ -345,9 +345,6 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 );
             }
         });
-
-        // items.push(parse_quote! {
-        // });
     }
     quote! {
         #input_mod
