@@ -46,7 +46,7 @@ fn mgmt_canister_id() -> CanisterId {
 }
 
 /// sign the provided message using the IC chain-key API.
-pub async fn sign_p2tr(
+async fn sign_with_schnorr(
     message: Vec<u8>,
     network: Network,
     derivation_path: Vec<Vec<u8>>,
@@ -100,9 +100,10 @@ pub async fn sign_p2tr_key_spend(
     network: Network,
     derivation_path: Vec<Vec<u8>>,
 ) -> Result<Vec<u8>, String> {
-    let signature = self::sign_p2tr(digest.as_ref().to_vec(), network, derivation_path, None)
-        .await
-        .map_err(|e| e.to_string())?;
+    let signature =
+        self::sign_with_schnorr(digest.as_ref().to_vec(), network, derivation_path, None)
+            .await
+            .map_err(|e| e.to_string())?;
     Ok(signature)
 }
 
@@ -112,9 +113,10 @@ pub async fn sign_p2tr_prehashed(
     network: Network,
     derivation_path: Vec<Vec<u8>>,
 ) -> Result<Vec<u8>, String> {
-    let signature = self::sign_p2tr(digest.as_ref().to_vec(), network, derivation_path, None)
-        .await
-        .map_err(|e| e.to_string())?;
+    let signature =
+        self::sign_with_schnorr(digest.as_ref().to_vec(), network, derivation_path, None)
+            .await
+            .map_err(|e| e.to_string())?;
     Ok(signature)
 }
 
