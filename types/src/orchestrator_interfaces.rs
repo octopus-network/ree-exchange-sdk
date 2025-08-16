@@ -25,6 +25,7 @@ pub const TESTNET4_ORCHESTRATOR_CANISTER: &'static str = "hvyp5-5yaaa-aaaao-qjxh
 // mainnet orchestrator
 pub const ORCHESTRATOR_CANISTER: &'static str = "kqs64-paaaa-aaaar-qamza-cai";
 
+#[doc(hidden)]
 pub fn ensure_testnet4_orchestrator() -> Result<(), String> {
     let o = Principal::from_str(TESTNET4_ORCHESTRATOR_CANISTER).expect("is valid principal; qed");
     (o == ic_cdk::api::msg_caller())
@@ -32,6 +33,7 @@ pub fn ensure_testnet4_orchestrator() -> Result<(), String> {
         .ok_or("Access denied".to_string())
 }
 
+#[doc(hidden)]
 pub fn ensure_orchestrator() -> Result<(), String> {
     let o = Principal::from_str(ORCHESTRATOR_CANISTER).expect("is valid principal; qed");
     (o == ic_cdk::api::msg_caller())

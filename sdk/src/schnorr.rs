@@ -45,7 +45,8 @@ fn mgmt_canister_id() -> CanisterId {
     CanisterId::from_text(MGMT_CANISTER_ID).unwrap()
 }
 
-pub async fn sign_p2tr(
+/// sign the provided message using the IC chain-key API.
+async fn sign_with_schnorr(
     message: Vec<u8>,
     network: Network,
     derivation_path: Vec<Vec<u8>>,
@@ -92,17 +93,34 @@ pub async fn sign_p2tr(
     Ok(reply.signature)
 }
 
+/// sign the provided pre-hashed digest using the IC chain-key API, i.e. the P2TR key path spend
+/// reference: <https://learnmeabitcoin.com/technical/upgrades/taproot/#key-path-spend>
+pub async fn sign_p2tr_key_spend(
+    digest: impl AsRef<[u8; 32]>,
+    network: Network,
+    derivation_path: Vec<Vec<u8>>,
+) -> Result<Vec<u8>, String> {
+    let signature =
+        self::sign_with_schnorr(digest.as_ref().to_vec(), network, derivation_path, None)
+            .await
+            .map_err(|e| e.to_string())?;
+    Ok(signature)
+}
+
+#[deprecated(since = "0.8.2", note = "Use `sign_p2tr_key_spend` instead")]
 pub async fn sign_p2tr_prehashed(
     digest: impl AsRef<[u8; 32]>,
     network: Network,
     derivation_path: Vec<Vec<u8>>,
 ) -> Result<Vec<u8>, String> {
-    let signature = self::sign_p2tr(digest.as_ref().to_vec(), network, derivation_path, None)
-        .await
-        .map_err(|e| e.to_string())?;
+    let signature =
+        self::sign_with_schnorr(digest.as_ref().to_vec(), network, derivation_path, None)
+            .await
+            .map_err(|e| e.to_string())?;
     Ok(signature)
 }
 
+/// Tweak the schnoor public key with an empty TapTweak.
 pub fn tweak_pubkey_with_empty(untweaked: Pubkey) -> Pubkey {
     let secp = Secp256k1::new();
     let (tweaked, _) = untweaked.to_x_only_public_key().tap_tweak(&secp, None);
@@ -180,7 +198,7 @@ pub async fn sign_p2tr_in_psbt(
                     TapSighashType::Default,
                 )
                 .expect("couldn't construct taproot sighash");
-            let raw_sig = self::sign_p2tr_prehashed(&sighash, network, derivation_path.clone())
+            let raw_sig = self::sign_p2tr_key_spend(&sighash, network, derivation_path.clone())
                 .await
                 .map_err(|e| e.to_string())?;
             let inner_sig = bitcoin::secp256k1::schnorr::Signature::from_slice(&raw_sig)

@@ -259,7 +259,7 @@ impl Metadata {
 }
 
 /// The essential information about the pool state.
-#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
 pub struct StateInfo {
     pub nonce: u64,
     pub txid: Txid,
@@ -465,14 +465,7 @@ where
             .states
             .last()
             .map(|s| s.inspect_state())
-            .unwrap_or(StateInfo {
-                txid: Txid::zero(),
-                nonce: 0,
-                coin_reserved: vec![],
-                btc_reserved: 0,
-                utxos: vec![],
-                attributes: "{}".to_string(),
-            });
+            .unwrap_or_default();
         let StateInfo {
             txid: _,
             nonce,
