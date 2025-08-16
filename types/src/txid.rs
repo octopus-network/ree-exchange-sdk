@@ -1,7 +1,7 @@
 use alloc::{borrow::Cow, str::FromStr};
 use candid::{
-    types::{Serializer, Type, TypeInner},
     CandidType,
+    types::{Serializer, Type, TypeInner},
 };
 use ic_stable_structures::storable::{Bound, Storable};
 

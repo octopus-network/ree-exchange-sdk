@@ -1,9 +1,9 @@
 use alloc::str::FromStr;
 use candid::{
-    types::{Serializer, Type, TypeInner},
     CandidType,
+    types::{Serializer, Type, TypeInner},
 };
-use ic_stable_structures::{storable::Bound, Storable};
+use ic_stable_structures::{Storable, storable::Bound};
 
 /// The identifier for a RUNE in the Bitcoin network. Specially, BTC is represented by `CoinId::btc()`.
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Hash)]
