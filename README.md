@@ -32,10 +32,6 @@ ree-exchange-sdk = "0.9"
 
 Docs: https://docs.rs/ree-exchange-sdk
 
-## Examples
-
-A simple exchange is provided in examples under.
-
 ## REE exchange flow (high level)
 
 1. Construct PSBT: The client (wallet/UI) composes a PSBT from user input and REE exchange metadata, then the user signs it.
