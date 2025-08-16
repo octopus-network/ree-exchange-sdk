@@ -459,6 +459,7 @@ pub trait Pools {
 
 /// A set of hooks that can be implemented to respond to various events in the exchange lifecycle.
 /// It must be implemented over the `Pools` type and marked as `#[ree_exchange_sdk::hook]`.
+/// NOTE: Any modification to the pool state within `Hook` would cause panic.
 pub trait Hook {
     /// This function is called when a new block is received, before any processing.
     fn pre_new_block(_args: NewBlockInfo) {}

@@ -129,14 +129,13 @@ where
     );
     // Roll back each affected pool to its state before this transaction
     for addr in record.pools.iter() {
-        pools
-            .get(addr)
-            .ok_or(format!(
-                "Pool {} not found but marked an associated transaction {}",
-                addr, args.txid
-            ))?
-            .rollback(args.txid)
+        let mut pool = pools.get(addr).ok_or(format!(
+            "Pool {} not found but marked an associated transaction {}",
+            addr, args.txid
+        ))?;
+        pool.rollback(args.txid)
             .map_err(|e| format!("Failed to rollback pool {}: {}", addr, e))?;
+        pools.insert(addr.clone(), pool);
         P::on_tx_rollbacked(addr.clone(), args.txid, args.reason_code.clone());
     }
     transactions.remove(&(args.txid, false));
@@ -214,13 +213,12 @@ where
                     ic_cdk::println!("finalize txid: {} with pools: {:?}", txid, record.pools);
                     // Make transaction state permanent in each affected pool
                     for addr in record.pools.into_iter() {
-                        pools
-                            .get(&addr)
-                            .ok_or(format!(
-                                "Pool {} not found but marked an associated transaction {}",
-                                addr, txid
-                            ))?
-                            .finalize(*txid)?;
+                        let mut pool = pools.get(&addr).ok_or(format!(
+                            "Pool {} not found but marked an associated transaction {}",
+                            addr, txid
+                        ))?;
+                        pool.finalize(*txid)?;
+                        pools.insert(addr.clone(), pool);
                         P::on_tx_finalized(addr, *txid, finalized_block.clone());
                     }
                     transactions.remove(&(*txid, true));
