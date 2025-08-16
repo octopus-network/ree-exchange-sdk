@@ -64,7 +64,7 @@
 //!         fn pre_new_block(_args: NewBlockInfo) {}
 //!
 //!         // This function is called when a transaction is dropped from the mempool.
-//!         fn on_tx_rollbacked(_address: String, _txid: Txid, _reason: String) {}
+//!         fn on_tx_rollbacked(_address: String, _txid: Txid, _reason: String, _rollbacked_states: Vec<DummyPoolState>) {}
 //!
 //!         // This function is called when a transaction is confirmed in a block.
 //!         fn on_tx_confirmed(_address: String, _txid: Txid, _block: Block) {}
