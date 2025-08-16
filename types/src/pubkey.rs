@@ -1,11 +1,11 @@
 use alloc::str::FromStr;
 use candid::{
-    types::{Serializer, Type, TypeInner},
     CandidType,
+    types::{Serializer, Type, TypeInner},
 };
-use ic_stable_structures::{storable::Bound, Storable};
+use ic_stable_structures::{Storable, storable::Bound};
 
-/// The Bitcoin public key compatible with the IC storage.
+/// The Bitcoin compressed public key compatible with the IC storage.
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Debug)]
 pub struct Pubkey(Vec<u8>);
 
