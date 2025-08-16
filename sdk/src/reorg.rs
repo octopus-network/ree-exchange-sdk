@@ -133,10 +133,16 @@ where
             "Pool {} not found but marked an associated transaction {}",
             addr, args.txid
         ))?;
-        pool.rollback(args.txid)
+        let rollbacked_states = pool
+            .rollback(args.txid)
             .map_err(|e| format!("Failed to rollback pool {}: {}", addr, e))?;
         pools.insert(addr.clone(), pool);
-        P::on_tx_rollbacked(addr.clone(), args.txid, args.reason_code.clone());
+        P::on_tx_rollbacked(
+            addr.clone(),
+            args.txid,
+            args.reason_code.clone(),
+            rollbacked_states,
+        );
     }
     transactions.remove(&(args.txid, false));
     transactions.remove(&(args.txid, true));

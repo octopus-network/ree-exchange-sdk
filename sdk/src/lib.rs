@@ -354,7 +354,7 @@ pub trait ReePool<S> {
 
     fn get_pool_basic(&self) -> PoolBasic;
 
-    fn rollback(&mut self, txid: Txid) -> Result<(), String>;
+    fn rollback(&mut self, txid: Txid) -> Result<Vec<S>, String>;
 
     fn finalize(&mut self, txid: Txid) -> Result<(), String>;
 }
@@ -405,18 +405,19 @@ where
         }
     }
 
-    fn rollback(&mut self, txid: Txid) -> Result<(), String> {
+    fn rollback(&mut self, txid: Txid) -> Result<Vec<S>, String> {
         let idx = self
             .states
             .iter()
             .position(|state| state.inspect_state().txid == txid)
             .ok_or("txid not found".to_string())?;
-        if idx == 0 {
-            self.states.clear();
-            return Ok(());
+
+        let mut rollbacked_states = vec![];
+        while self.states.len() > idx {
+            rollbacked_states.push(self.states.pop().unwrap());
         }
-        self.states.truncate(idx);
-        Ok(())
+
+        Ok(rollbacked_states)
     }
 
     fn finalize(&mut self, txid: Txid) -> Result<(), String> {
@@ -465,7 +466,13 @@ pub trait Hook {
     fn pre_new_block(_args: NewBlockInfo) {}
 
     /// This function is called when a transaction is dropped from the mempool.
-    fn on_tx_rollbacked(_address: String, _txid: Txid, _reason: String) {}
+    fn on_tx_rollbacked<S>(
+        _address: String,
+        _txid: Txid,
+        _reason: String,
+        _rollbacked_states: Vec<S>,
+    ) {
+    }
 
     /// This function is called when a transaction is confirmed in a block.
     fn on_tx_confirmed(_address: String, _txid: Txid, _block: Block) {}
@@ -543,6 +550,8 @@ pub mod iter {
 
 #[cfg(test)]
 pub mod test {
+    use std::str::FromStr;
+
     use super::*;
 
     #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -553,6 +562,19 @@ pub mod test {
         btc_reserved: u64,
         utxos: Vec<Utxo>,
         attributes: String,
+    }
+
+    impl StateView for DummyPoolState {
+        fn inspect_state(&self) -> StateInfo {
+            StateInfo {
+                txid: self.txid.clone(),
+                nonce: self.nonce,
+                coin_reserved: self.coin_reserved.clone(),
+                btc_reserved: self.btc_reserved,
+                utxos: self.utxos.clone(),
+                attributes: self.attributes.clone(),
+            }
+        }
     }
 
     #[test]
@@ -586,5 +608,77 @@ pub mod test {
         let mut candid_de = candid::de::IDLDeserialize::new(&candid_serialized).unwrap();
         let candid_deserialized = candid_de.get_value::<DummyPoolState>();
         assert!(candid_deserialized.is_ok());
+    }
+
+    #[test]
+    fn test_pool_rollback() {
+        let mut pool = Pool::<DummyPoolState> {
+            metadata: Metadata {
+                key: Pubkey::from_raw(vec![2u8; 33]).unwrap(),
+                key_derivation_path: vec![vec![0; 32]],
+                name: "Test Pool".to_string(),
+                address: "test-address".to_string(),
+            },
+            states: vec![],
+        };
+        let push_random_state_by_txid = |txid: &str, pool: &mut Pool<DummyPoolState>| {
+            let txid = Txid::from_str(txid).unwrap();
+            let nonce = pool.states.len() as u64;
+            let state = DummyPoolState {
+                nonce,
+                txid,
+                coin_reserved: vec![],
+                btc_reserved: 0,
+                utxos: vec![],
+                attributes: "{}".to_string(),
+            };
+            pool.states.push(state);
+        };
+
+        let txs = [
+            "51230fe70deae44a92f8f44a600585e3e57b8c8720a0b67c4c422f579d9ace2a",
+            "51230fe70deae44a92f8f44a600585e3e57b8c8720a0b67c4c422f579d9ace2b",
+            "51230fe70deae44a92f8f44a600585e3e57b8c8720a0b67c4c422f579d9ace2c",
+        ];
+
+        let init_pool_state = |pool: &mut Pool<DummyPoolState>| {
+            pool.states.clear();
+            for txid in txs.iter() {
+                push_random_state_by_txid(txid, pool);
+            }
+        };
+
+        // test rollback first tx
+        init_pool_state(&mut pool);
+        assert_eq!(pool.states.len(), 3);
+        let before_rollback_states = pool.states.clone();
+        let rollbacked_states = pool.rollback(Txid::from_str(txs[0]).unwrap()).unwrap();
+        assert_eq!(rollbacked_states.len(), 3);
+        assert_eq!(pool.states.len(), 0);
+        assert_eq!(rollbacked_states[0], before_rollback_states[2]);
+        assert_eq!(rollbacked_states[1], before_rollback_states[1]);
+        assert_eq!(rollbacked_states[2], before_rollback_states[0]);
+
+        // test rollback mid tx
+        init_pool_state(&mut pool);
+        assert_eq!(pool.states.len(), 3);
+        let before_rollback_states = pool.states.clone();
+        let rollbacked_states = pool.rollback(Txid::from_str(txs[1]).unwrap()).unwrap();
+        assert_eq!(rollbacked_states.len(), 2);
+        assert_eq!(pool.states.len(), 1);
+        assert_eq!(pool.states[0], before_rollback_states[0]);
+        assert_eq!(rollbacked_states[0], before_rollback_states[2]);
+        assert_eq!(rollbacked_states[1], before_rollback_states[1]);
+
+        // test rollback last tx
+        init_pool_state(&mut pool);
+        assert_eq!(pool.states.len(), 3);
+        let before_rollback_states = pool.states.clone();
+        let rollbacked_states = pool.rollback(Txid::from_str(txs[2]).unwrap()).unwrap();
+        assert_eq!(rollbacked_states.len(), 1);
+        assert_eq!(pool.states.len(), 2);
+        assert_eq!(pool.states[0], before_rollback_states[0]);
+        assert_eq!(pool.states[1], before_rollback_states[1]);
+        assert_eq!(rollbacked_states[0], before_rollback_states[2]);
     }
 }
