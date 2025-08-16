@@ -339,64 +339,21 @@ impl Storable for Metadata {
 
 impl<S> Storable for Pool<S>
 where
-    S: Storable,
+    S: Storable + Serialize + for<'de> Deserialize<'de>,
 {
     const BOUND: Bound = Bound::Unbounded;
 
     fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
-        let metadata_bytes = self.metadata.to_bytes();
-        let metadata_bytes_len = metadata_bytes.as_ref().len();
-        let mut bytes = vec![];
-        bytes.extend_from_slice(&(metadata_bytes_len as u32).to_le_bytes());
-        bytes.extend_from_slice(metadata_bytes.as_ref());
-        bytes.extend_from_slice(&(self.states.len() as u32).to_le_bytes());
-        for state in self.states.iter() {
-            let state_bytes = state.to_bytes();
-            let state_bytes_len = state_bytes.as_ref().len();
-            bytes.extend_from_slice(&(state_bytes_len as u32).to_le_bytes());
-            bytes.extend_from_slice(state_bytes.as_ref());
-        }
+        let bytes = bincode::serialize(self).unwrap();
         std::borrow::Cow::Owned(bytes)
     }
 
     fn into_bytes(self) -> Vec<u8> {
-        let metadata_bytes = self.metadata.to_bytes();
-        let metadata_bytes_len = metadata_bytes.as_ref().len();
-        let mut bytes = vec![];
-        bytes.extend_from_slice(&(metadata_bytes_len as u32).to_le_bytes());
-        bytes.extend_from_slice(metadata_bytes.as_ref());
-        bytes.extend_from_slice(&(self.states.len() as u32).to_le_bytes());
-        for state in self.states.into_iter() {
-            let state_bytes = state.to_bytes();
-            let state_bytes_len = state_bytes.as_ref().len();
-            bytes.extend_from_slice(&(state_bytes_len as u32).to_le_bytes());
-            bytes.extend_from_slice(state_bytes.as_ref());
-        }
-        bytes
+        bincode::serialize(&self).unwrap()
     }
 
     fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
-        let bytes = bytes.into_owned();
-        let metadata_len = u32::from_le_bytes(bytes[0..4].try_into().unwrap()) as usize;
-        let metadata_bytes = &bytes[4..4 + metadata_len];
-        let metadata = Metadata::from_bytes(metadata_bytes.into());
-        let mut states = Vec::new();
-        let states_len = u32::from_le_bytes(
-            bytes[4 + metadata_len..8 + metadata_len]
-                .try_into()
-                .unwrap(),
-        ) as usize;
-        let mut offset = 8 + metadata_len;
-        for _ in 0..states_len {
-            let state_len =
-                u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap()) as usize;
-            offset += 4;
-            let state_bytes = &bytes[offset..offset + state_len];
-            offset += state_len;
-            let state = S::from_bytes(state_bytes.into());
-            states.push(state);
-        }
-        Self { metadata, states }
+        bincode::deserialize(bytes.as_ref()).unwrap()
     }
 }
 
@@ -519,7 +476,7 @@ where
 /// The Pools trait defines the interface for the exchange pools, must be marked as `#[ree_exchange_sdk::pools]`.
 pub trait Pools {
     /// The concrete type of the pool state.
-    type State: Storable + StateView;
+    type State: Storable + StateView + Serialize + for<'de> Deserialize<'de>;
 
     /// The memory ID for the pool storage.
     const POOL_MEMORY: u8;
