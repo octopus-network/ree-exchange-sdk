@@ -5,7 +5,6 @@
 //! use self::exchange::*;
 //! use candid::CandidType;
 //! use ic_cdk::{query, update};
-//! use ic_stable_structures::{Storable, storable::Bound};
 //! use ree_exchange_sdk::{prelude::*, types::*};
 //! use serde::{Deserialize, Serialize};
 //!
@@ -17,26 +16,6 @@
 //!     pub btc_reserved: u64,
 //!     pub utxos: Vec<Utxo>,
 //!     pub attributes: String,
-//! }
-//!
-//! impl Storable for DummyPoolState {
-//!     const BOUND: Bound = Bound::Unbounded;
-//!
-//!     fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
-//!         let mut bytes = vec![];
-//!         let _ = ciborium::ser::into_writer(self, &mut bytes);
-//!         std::borrow::Cow::Owned(bytes)
-//!     }
-//!
-//!     fn into_bytes(self) -> Vec<u8> {
-//!         let mut bytes = vec![];
-//!         let _ = ciborium::ser::into_writer(&self, &mut bytes);
-//!         bytes
-//!     }
-//!
-//!     fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
-//!         ciborium::de::from_reader(bytes.as_ref()).expect("failed to decode Pool")
-//!     }
 //! }
 //!
 //! impl StateView for DummyPoolState {
@@ -125,8 +104,8 @@
 //! }
 //!
 //! #[update]
-//! pub fn new_pool(name: String) {
-//!     let metadata = Metadata::<DummyPools>::generate_new(name.clone(), name)
+//! pub async fn new_pool(name: String) {
+//!     let metadata = Metadata::generate_new::<DummyPools>(name.clone(), name)
 //!         .await
 //!         .expect("Failed to call chain-key API");
 //!     let pool = Pool::new(metadata);
@@ -140,7 +119,6 @@
 //!
 //! ic_cdk::export_candid!();
 //!```
-//!
 
 #[doc(hidden)]
 pub mod reorg;
@@ -314,32 +292,15 @@ pub trait StateView {
 
 /// The concrete type stored in the IC stable memory.
 /// The SDK will automatically manage the pool state `S`.
-#[derive(CandidType, Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Pool<S> {
     metadata: Metadata,
     states: Vec<S>,
 }
 
-impl Storable for Metadata {
-    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
-        let bytes = bincode::serialize(self).unwrap();
-        std::borrow::Cow::Owned(bytes)
-    }
-
-    fn into_bytes(self) -> Vec<u8> {
-        bincode::serialize(&self).unwrap()
-    }
-
-    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
-        bincode::deserialize(bytes.as_ref()).unwrap()
-    }
-
-    const BOUND: Bound = Bound::Unbounded;
-}
-
 impl<S> Storable for Pool<S>
 where
-    S: Storable + Serialize + for<'de> Deserialize<'de>,
+    S: Serialize + for<'de> Deserialize<'de>,
 {
     const BOUND: Bound = Bound::Unbounded;
 
@@ -401,7 +362,7 @@ pub trait ReePool<S> {
 #[doc(hidden)]
 impl<S> ReePool<S> for Pool<S>
 where
-    S: Storable + StateView,
+    S: StateView,
 {
     fn get_pool_basic(&self) -> PoolBasic {
         PoolBasic {
@@ -476,7 +437,7 @@ where
 /// The Pools trait defines the interface for the exchange pools, must be marked as `#[ree_exchange_sdk::pools]`.
 pub trait Pools {
     /// The concrete type of the pool state.
-    type State: Storable + StateView + Serialize + for<'de> Deserialize<'de>;
+    type State: StateView + Serialize + for<'de> Deserialize<'de>;
 
     /// The memory ID for the pool storage.
     const POOL_MEMORY: u8;
@@ -576,5 +537,53 @@ pub mod iter {
                 },
             }
         }
+    }
+}
+
+#[cfg(test)]
+pub mod test {
+    use super::*;
+
+    #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+    struct DummyPoolState {
+        nonce: u64,
+        txid: Txid,
+        coin_reserved: Vec<CoinBalance>,
+        btc_reserved: u64,
+        utxos: Vec<Utxo>,
+        attributes: String,
+    }
+
+    #[test]
+    pub fn test_candid_and_bincode_serialize() {
+        let state = DummyPoolState {
+            nonce: 1,
+            txid: Txid::default(),
+            coin_reserved: vec![],
+            btc_reserved: 0,
+            utxos: vec![],
+            attributes: "{}".to_string(),
+        };
+        let pool = Pool::<DummyPoolState> {
+            metadata: Metadata {
+                key: Pubkey::from_raw(vec![2u8; 33]).unwrap(),
+                key_derivation_path: vec![vec![0; 32]],
+                name: "Test Pool".to_string(),
+                address: "test-address".to_string(),
+            },
+            states: vec![state.clone()],
+        };
+        let bincode_serialized = pool.to_bytes();
+        Pool::<DummyPoolState>::from_bytes(bincode_serialized);
+        assert_eq!(pool.metadata.name, "Test Pool");
+
+        let mut candid_ser = candid::ser::IDLBuilder::new();
+        candid_ser.arg(&state).unwrap();
+        let candid_serialized = candid_ser.serialize_to_vec();
+        assert!(candid_serialized.is_ok());
+        let candid_serialized = candid_serialized.unwrap();
+        let mut candid_de = candid::de::IDLDeserialize::new(&candid_serialized).unwrap();
+        let candid_deserialized = candid_de.get_value::<DummyPoolState>();
+        assert!(candid_deserialized.is_ok());
     }
 }
