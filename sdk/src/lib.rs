@@ -50,31 +50,11 @@
 //!         fn network() -> Network {
 //!             Network::Testnet4
 //!         }
-//!
-//!         // This is optional
-//!         fn finalize_threshold() -> u32 {
-//!             60
-//!         }
 //!     }
 //!
 //!     // This is optional
 //!     #[hook]
-//!     impl Hook for DummyPools {
-//!         // This function is called when a new block is received, before any processing.
-//!         fn pre_new_block(_args: NewBlockInfo) {}
-//!
-//!         // This function is called when a transaction is dropped from the mempool.
-//!         fn on_tx_rollbacked(_address: String, _txid: Txid, _reason: String, _rollbacked_states: Vec<DummyPoolState>) {}
-//!
-//!         // This function is called when a transaction is confirmed in a block.
-//!         fn on_tx_confirmed(_address: String, _txid: Txid, _block: Block) {}
-//!
-//!         // This function is called when a transaction reaches the finalize threshold.
-//!         fn on_tx_finalized(_address: String, _txid: Txid, _block: Block) {}
-//!
-//!         // This function is called after a new block is processed.
-//!         fn post_new_block(_args: NewBlockInfo) {}
-//!     }
+//!     impl Hook for DummyPools {}
 //!
 //!     // `swap` is the action function that will be called by the REE Orchestrator
 //!     // All actions should return an `ActionResult<S>` where `S` is the pool state of `Pools`.
@@ -453,6 +433,7 @@ pub trait Pools {
     fn network() -> Network;
 
     /// Returns the state finalize threshold, useful for determining when a transaction is considered finalized.
+    /// For `Testnet4`, it should be great than 60 while in `Bitcoin` it should be ~ 3-6.
     fn finalize_threshold() -> u32 {
         60
     }
