@@ -31,6 +31,7 @@ ree-exchange-sdk = "0.9"
 ```
 
 Docs: https://docs.rs/ree-exchange-sdk
+Tutorials: https://docs.omnity.network
 
 ## REE exchange flow (high level)
 
