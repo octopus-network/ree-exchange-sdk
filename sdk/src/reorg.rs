@@ -114,7 +114,7 @@ pub fn rollback_tx<P>(
     args: RollbackTxArgs,
 ) -> RollbackTxResponse
 where
-    P: Pools + Hook,
+    P: Hook,
 {
     // Look up the transaction record (both confirmed and unconfirmed)
     let maybe_unconfirmed_record = transactions.get(&(args.txid.clone(), false));
@@ -156,7 +156,7 @@ pub fn new_block<P>(
     args: NewBlockArgs,
 ) -> NewBlockResponse
 where
-    P: Pools + Hook,
+    P: Hook,
 {
     P::pre_new_block(args.clone());
     // Check for blockchain reorganizations
