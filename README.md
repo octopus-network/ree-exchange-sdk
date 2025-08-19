@@ -30,8 +30,6 @@ Add the dependency in your `Cargo.toml`:
 ree-exchange-sdk = "0.9"
 ```
 
-Docs: https://docs.rs/ree-exchange-sdk
-Tutorials: https://docs.omnity.network
 
 ## REE exchange flow (high level)
 
@@ -43,5 +41,5 @@ Tutorials: https://docs.omnity.network
 ## License & links
 
 - License: MIT (see `LICENSE`)
-- Repository: https://github.com/octopus-network/ree-exchange-sdk
+- Tutorials: https://docs.omnity.network/
 - Website: https://www.omnity.network/
