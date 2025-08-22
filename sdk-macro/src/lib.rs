@@ -124,9 +124,9 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
             .map(|(action, (func, is_async))| {
                 let call = format_ident!("{}", func);
                 if *is_async {
-                    quote! { #action => #call(&mut psbt, args).await, }
+                    quote! { #action => #call(&psbt, args).await, }
                 } else {
-                    quote! { #action => #call(&mut psbt, args), }
+                    quote! { #action => #call(&psbt, args), }
                 }
             })
             .collect::<Vec<_>>();
@@ -171,6 +171,8 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 let _guard = self::__ExecuteTxGuard::new(pool_address.clone())
                     .ok_or(format!("Pool {} is being executed", pool_address))?;
                 let txid = args.txid.clone();
+                let inputs = args.intention.pool_outpoints()
+                    .map_err(|e| format!("Failed to deserialize input outpoints: {}", e))?;
                 let action = args.intention.action.clone();
                 let result: ::ree_exchange_sdk::ActionResult::<<#pools as ::ree_exchange_sdk::Pools>::State> = match action.as_str() {
                     #(#branch)*
@@ -178,15 +180,19 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 };
                 match result {
                     ::ree_exchange_sdk::ActionResult::<<#pools as ::ree_exchange_sdk::Pools>::State>::Ok(r) => {
+                        let mut pool = self::__CURRENT_POOLS.with_borrow(|pools| {
+                            pools.get(&pool_address).clone()
+                        }).ok_or(format!("Pool {} not found", pool_address))?;
+                        ::ree_exchange_sdk::schnorr::sign_p2tr_inputs(
+                            &mut psbt,
+                            &inputs,
+                            <#pools as ::ree_exchange_sdk::Pools>::network(),
+                            pool.metadata().key_derivation_path.clone(),
+                        ).await?;
+                        pool.states_mut().push(r);
                         self::__CURRENT_POOLS.with_borrow_mut(|pools| {
-                            if let Some(mut pool) = pools.get(&pool_address) {
-                                pool.states_mut().push(r);
-                                pools.insert(pool_address.clone(), pool);
-                                ::core::result::Result::<(), String>::Ok(())
-                            } else {
-                                ::core::result::Result::<(), String>::Err(format!("Pool {} not found", pool_address))
-                            }
-                        })?;
+                            pools.insert(pool_address.clone(), pool);
+                        });
                         self::__TX_RECORDS.with_borrow_mut(|m| {
                             let mut record = m.get(&(txid.clone(), false)).unwrap_or_default();
                             if !record.pools.contains(&pool_address) {
@@ -354,7 +360,7 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 /// Action entrypoint. The macro could be
 /// `#[action(name = "my_action")]` or `#[action("my_action")]` or `#[action]`.
-/// The functions shall have signature `fn(&mut Psbt, ActionArgs) -> ActionResult<Pools::State>`
+/// The functions shall have signature `fn(&bitcoin::Psbt, ActionArgs) -> ActionResult<Pools::State>`
 #[proc_macro_attribute]
 pub fn action(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item

@@ -158,7 +158,6 @@ pub fn new_block<P>(
 where
     P: Hook,
 {
-    P::pre_new_block(args.clone());
     // Check for blockchain reorganizations
     match detect_reorg(blocks, P::finalize_threshold(), args.clone()) {
         Ok(_) => {}
@@ -234,16 +233,18 @@ where
     }
 
     // Clean up old block data that's no longer needed
-    let heights_to_remove: Vec<u32> = blocks
+    let mut heights_to_remove: Vec<u32> = blocks
         .iter()
         .map(|entry| entry.into_pair())
         .take_while(|(height, _)| *height <= confirmed_height)
         .map(|(height, _)| height)
         .collect();
+    heights_to_remove.sort();
     for height in heights_to_remove {
         ic_cdk::println!("removing block: {}", height);
-        blocks.remove(&height);
+        if let Some(block) = blocks.remove(&height) {
+            P::on_block_finalized(block);
+        }
     }
-    P::post_new_block(args);
     Ok(())
 }
