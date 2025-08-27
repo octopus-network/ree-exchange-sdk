@@ -1,15 +1,96 @@
 use proc_macro::TokenStream;
-use quote::{format_ident, quote};
+use quote::{ToTokens, format_ident, quote};
 use std::collections::BTreeMap;
-use syn::{
-    Attribute, Ident, ItemFn, ItemMod, Meta, parse_macro_input, parse_quote, visit_mut::VisitMut,
-};
+use syn::{Attribute, Ident, ItemMod, parse_macro_input, parse_quote, visit_mut::VisitMut};
 
 #[derive(Clone)]
 struct CanisterVisitor {
     actions: BTreeMap<String, (String, bool)>,
     pools: Option<Ident>,
     hook_present: bool,
+    storages: BTreeMap<u8, (proc_macro2::TokenStream, proc_macro2::TokenStream)>,
+}
+
+mod keywords {
+    syn::custom_keyword!(exchange);
+    syn::custom_keyword!(pools);
+    syn::custom_keyword!(hook);
+    syn::custom_keyword!(storage);
+    syn::custom_keyword!(action);
+    syn::custom_keyword!(memory);
+    syn::custom_keyword!(name);
+}
+
+struct StorageDeclAttr {
+    memory_id: u8,
+}
+
+impl syn::parse::Parse for StorageDeclAttr {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        input.parse::<syn::Token![#]>()?;
+        let content;
+        syn::bracketed!(content in input);
+        content.parse::<keywords::storage>()?;
+        let inside;
+        syn::parenthesized!(inside in content);
+        let lookahead = inside.lookahead1();
+        if lookahead.peek(keywords::memory) {
+            let _ = inside.parse::<keywords::memory>()?;
+            let _ = inside.parse::<syn::Token![=]>()?;
+            let lit: syn::LitInt = inside.parse()?;
+            let memory_id = lit.base10_parse::<u8>()?;
+            if memory_id > 127 {
+                return Err(syn::Error::new_spanned(
+                    lit,
+                    "Memory id must be between 0 and 127",
+                ));
+            }
+            Ok(Self { memory_id })
+        } else {
+            let lit: syn::LitInt = inside.parse()?;
+            let memory_id = lit.base10_parse::<u8>()?;
+            if memory_id > 127 {
+                return Err(syn::Error::new_spanned(
+                    lit,
+                    "Memory id must be between 0 and 127",
+                ));
+            }
+            Ok(Self { memory_id })
+        }
+    }
+}
+
+enum ActionDeclAttr {
+    Named { value: syn::LitStr },
+    Unnamed,
+}
+
+impl syn::parse::Parse for ActionDeclAttr {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        input.parse::<syn::Token![#]>()?;
+        let content;
+        syn::bracketed!(content in input);
+        content.parse::<keywords::action>()?;
+        if content.is_empty() {
+            return Ok(Self::Unnamed);
+        }
+        let inside;
+        syn::parenthesized!(inside in content);
+        let lookahead = inside.lookahead1();
+        if lookahead.peek(keywords::name) {
+            let _ = inside.parse::<keywords::name>()?;
+            let _ = inside.parse::<syn::Token![=]>()?;
+            Ok(Self::Named {
+                value: inside.parse()?,
+            })
+        } else if lookahead.peek(syn::LitStr) {
+            Ok(Self::Named {
+                value: inside.parse()?,
+            })
+        } else {
+            Err(lookahead.error())
+        }
+    }
 }
 
 impl CanisterVisitor {
@@ -18,6 +99,7 @@ impl CanisterVisitor {
             actions: BTreeMap::new(),
             pools: None,
             hook_present: false,
+            storages: BTreeMap::new(),
         }
     }
 
@@ -32,58 +114,95 @@ impl CanisterVisitor {
         self.pools = Some(ty.ident.clone());
     }
 
-    fn resolve_action(&mut self, attr: &Attribute, func: &ItemFn) {
+    fn resolve_action(&mut self, attr: &Attribute, func: &syn::ItemFn) {
         let is_action = attr.path().is_ident("action");
         if !is_action {
             return;
         }
-        if let Meta::Path(_) = &attr.meta {
-            self.actions.insert(
-                func.sig.ident.to_string(),
-                (func.sig.ident.to_string(), func.sig.asyncness.is_some()),
-            );
-        } else if let Meta::List(meta_list) = &attr.meta {
-            let exp = meta_list.tokens.clone().into_iter().collect::<Vec<_>>();
-            if exp.is_empty() {
-                let action = func.sig.ident.to_string();
+        let tokens = attr.to_token_stream();
+        let action_decl =
+            syn::parse2::<ActionDeclAttr>(tokens).expect("Failed to parse action attribute");
+        match action_decl {
+            ActionDeclAttr::Unnamed => {
+                self.actions.insert(
+                    func.sig.ident.to_string(),
+                    (func.sig.ident.to_string(), func.sig.asyncness.is_some()),
+                );
+            }
+            ActionDeclAttr::Named { value, .. } => {
+                let action = value.value();
                 self.actions.insert(
                     action,
                     (func.sig.ident.to_string(), func.sig.asyncness.is_some()),
                 );
-            } else if exp.len() == 1 {
-                if let proc_macro2::TokenTree::Literal(lit) = &exp[0] {
-                    let action = lit.to_string().replace('"', "");
-                    self.actions.insert(
-                        action,
-                        (func.sig.ident.to_string(), func.sig.asyncness.is_some()),
-                    );
-                } else {
-                    panic!("Expected #[action(\"...\")] attribute");
-                }
-            } else if exp.len() == 3 {
-                let b0 = matches!(exp[0].clone(), proc_macro2::TokenTree::Ident(ident) if ident.to_string() == "name");
-                let b1 = matches!(exp[1].clone(), proc_macro2::TokenTree::Punct(punct) if punct.as_char() == '=');
-                if !(b0 && b1) {
-                    panic!("Expected #[action(name = \"...\")] attribute");
-                }
-                if let proc_macro2::TokenTree::Literal(lit) = &exp[2] {
-                    let action = lit.to_string().replace('"', "");
-                    self.actions.insert(
-                        action,
-                        (func.sig.ident.to_string(), func.sig.asyncness.is_some()),
-                    );
-                } else {
-                    panic!("Expected #[action(name = \"...\")] attribute");
-                }
-            } else {
-                panic!("Unexpected tokens in #[action] macro");
             }
-        } else {
-            panic!(
-                "Expected `#[action(\"..\")]` or `#[action(name = \"..\")]` or `#[action]` attribute"
-            );
         }
     }
+
+    fn resolve_storage(&mut self, attr: &Attribute, ty: &syn::ItemType) {
+        let is_storage = attr.path().is_ident("storage");
+        if !is_storage {
+            return;
+        }
+        let tokens = attr.to_token_stream();
+        let storage_decl =
+            syn::parse2::<StorageDeclAttr>(tokens).expect("Failed to parse storage attribute");
+        let id = storage_decl.memory_id;
+        let storage_name = to_upper_snake_case(&ty.ident.to_string());
+        let storage_name = format_ident!("__{}", storage_name);
+        let storage_ty = format_ident!("{}", ty.ident);
+
+        let decl = quote! {
+            static #storage_name: ::core::cell::RefCell<<#storage_ty as ::ree_exchange_sdk::store::StorageType>::Type> = ::core::cell::RefCell::new(
+                #storage_ty::init(
+                    __MEMORY_MANAGER.with(|m| m.borrow().get(::ic_stable_structures::memory_manager::MemoryId::new(#id))),
+                )
+            );
+        };
+        let access = quote! {
+            impl __CustomStorageAccess<#storage_ty> for #storage_ty {
+                fn with<F, R>(f: F) -> R
+                where
+                    F: FnOnce(&<#storage_ty as ::ree_exchange_sdk::store::StorageType>::Type) -> R,
+                {
+                    #storage_name.with(|s| {
+                        let s = s.borrow();
+                        let r = <::std::cell::Ref<'_, <#storage_ty as ::ree_exchange_sdk::store::StorageType>::Type> as ::std::ops::Deref>::deref(&s);
+                        f(r)
+                    })
+                }
+
+                fn with_mut<F, R>(f: F) -> R
+                where
+                    F: FnOnce(&mut <#storage_ty as ::ree_exchange_sdk::store::StorageType>::Type) -> R,
+                {
+                    #storage_name.with(|s| {
+                        let mut s = s.borrow_mut();
+                        let r = <::std::cell::RefMut<'_, <#storage_ty as ::ree_exchange_sdk::store::StorageType>::Type> as ::std::ops::DerefMut>::deref_mut(&mut s);
+                        f(r)
+                    })
+                }
+            }
+        };
+        if let Some(_) = self.storages.insert(id, (decl, access)) {
+            panic!("Memory id {} is already used", id);
+        }
+    }
+}
+
+fn to_upper_snake_case(s: &str) -> String {
+    let mut snake_case = String::new();
+    for (i, ch) in s.chars().enumerate() {
+        if ch.is_uppercase() {
+            if i != 0 {
+                snake_case.push('_');
+            }
+            snake_case.push(ch);
+        } else {
+            snake_case.push(ch.to_ascii_uppercase());
+        }
+    }
+    snake_case
 }
 
 impl VisitMut for CanisterVisitor {
@@ -105,6 +224,13 @@ impl VisitMut for CanisterVisitor {
         }
         syn::visit_mut::visit_item_impl_mut(self, item);
     }
+
+    fn visit_item_type_mut(&mut self, item: &mut syn::ItemType) {
+        for attr in item.attrs.iter() {
+            self.resolve_storage(&attr, item);
+        }
+        syn::visit_mut::visit_item_type_mut(self, item);
+    }
 }
 
 /// REE exchange entrypoint.
@@ -116,6 +242,10 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
     if visitor.pools.is_none() {
         panic!("#[pools] not found within the exchange mod");
     }
+    let (storage_decl, storage_access): (
+        Vec<proc_macro2::TokenStream>,
+        Vec<proc_macro2::TokenStream>,
+    ) = visitor.storages.into_values().unzip();
     let pools = visitor.pools.clone().unwrap();
     if let Some((_, ref mut items)) = input_mod.content {
         let branch = visitor
@@ -349,8 +479,24 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         ))),
                     )
                 );
+               #(#storage_decl)*
             }
         });
+        items.push(parse_quote! {
+            pub trait __CustomStorageAccess<S: ::ree_exchange_sdk::store::StorageType> {
+                fn with<F, R>(f: F) -> R
+                where
+                    F: FnOnce(&S::Type) -> R;
+                fn with_mut<F, R>(f: F) -> R
+                where
+                    F: FnOnce(&mut S::Type) -> R;
+            }
+        });
+        for access in storage_access {
+            items.push(parse_quote! {
+                #access
+            });
+        }
     }
     quote! {
         #input_mod
@@ -369,6 +515,16 @@ pub fn action(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// Pools definition
 #[proc_macro_attribute]
 pub fn pools(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+/// Storage definition
+/// ```rust
+/// #[storage(memory = 1)]
+/// pub type MyStorage = ree_exchange_sdk::store::StableBTreeMap<String, String>;
+/// ```
+#[proc_macro_attribute]
+pub fn storage(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 

@@ -95,6 +95,7 @@
 pub mod reorg;
 #[doc(hidden)]
 pub mod schnorr;
+pub mod store;
 pub mod prelude {
     pub use crate::*;
     pub use ree_exchange_sdk_macro::*;
