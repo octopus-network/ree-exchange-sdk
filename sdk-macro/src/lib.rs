@@ -151,10 +151,10 @@ impl CanisterVisitor {
         let storage_name = to_upper_snake_case(&ty.ident.to_string());
         let storage_name = format_ident!("__{}", storage_name);
         let storage_ty = format_ident!("{}", ty.ident);
-
+        let ic_ty = quote! { <#storage_ty as ::ree_exchange_sdk::store::StorageType>::Type };
         let decl = quote! {
-            static #storage_name: ::core::cell::RefCell<<#storage_ty as ::ree_exchange_sdk::store::StorageType>::Type> = ::core::cell::RefCell::new(
-                #storage_ty::init(
+            static #storage_name: ::core::cell::RefCell<#ic_ty> = ::core::cell::RefCell::new(
+                <#storage_ty as ::ree_exchange_sdk::store::StorageType>::init(
                     __MEMORY_MANAGER.with(|m| m.borrow().get(::ic_stable_structures::memory_manager::MemoryId::new(#id))),
                 )
             );
@@ -163,22 +163,22 @@ impl CanisterVisitor {
             impl __CustomStorageAccess<#storage_ty> for #storage_ty {
                 fn with<F, R>(f: F) -> R
                 where
-                    F: FnOnce(&<#storage_ty as ::ree_exchange_sdk::store::StorageType>::Type) -> R,
+                    F: FnOnce(&#ic_ty) -> R,
                 {
                     #storage_name.with(|s| {
                         let s = s.borrow();
-                        let r = <::std::cell::Ref<'_, <#storage_ty as ::ree_exchange_sdk::store::StorageType>::Type> as ::std::ops::Deref>::deref(&s);
+                        let r = <::std::cell::Ref<'_, #ic_ty> as ::std::ops::Deref>::deref(&s);
                         f(r)
                     })
                 }
 
                 fn with_mut<F, R>(f: F) -> R
                 where
-                    F: FnOnce(&mut <#storage_ty as ::ree_exchange_sdk::store::StorageType>::Type) -> R,
+                    F: FnOnce(&mut #ic_ty) -> R,
                 {
                     #storage_name.with(|s| {
                         let mut s = s.borrow_mut();
-                        let r = <::std::cell::RefMut<'_, <#storage_ty as ::ree_exchange_sdk::store::StorageType>::Type> as ::std::ops::DerefMut>::deref_mut(&mut s);
+                        let r = <::std::cell::RefMut<'_, #ic_ty> as ::std::ops::DerefMut>::deref_mut(&mut s);
                         f(r)
                     })
                 }
