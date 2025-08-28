@@ -286,7 +286,10 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 }
 
                 fn iter() -> ::ree_exchange_sdk::iter::PoolIterator<#pools> {
-                    ::ree_exchange_sdk::iterator::<#pools>()
+                    let memory = __MEMORY_MANAGER.with(|m| m.borrow().get(::ic_stable_structures::memory_manager::MemoryId::new(
+                        <#pools as ::ree_exchange_sdk::Pools>::POOL_MEMORY
+                    )));
+                    ::ree_exchange_sdk::iterator::<#pools>(memory)
                 }
             }
         });

@@ -73,7 +73,7 @@ pub type NewBlockArgs = NewBlockInfo;
 pub type NewBlockResponse = Result<(), String>;
 
 impl Storable for NewBlockInfo {
-    fn to_bytes(&self) -> Cow<[u8]> {
+    fn to_bytes(&self) -> Cow<'_, [u8]> {
         let bytes = bincode::serialize(self).unwrap();
         Cow::Owned(bytes)
     }
@@ -82,7 +82,7 @@ impl Storable for NewBlockInfo {
         bincode::serialize(&self).unwrap()
     }
 
-    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+    fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
         bincode::deserialize(bytes.as_ref()).unwrap()
     }
 

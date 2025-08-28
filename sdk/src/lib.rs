@@ -106,9 +106,7 @@ use crate::types::{
 };
 use candid::CandidType;
 use ic_stable_structures::{
-    BTreeMap, DefaultMemoryImpl, Storable,
-    memory_manager::{MemoryId, MemoryManager, VirtualMemory},
-    storable::Bound,
+    BTreeMap, DefaultMemoryImpl, Storable, memory_manager::VirtualMemory, storable::Bound,
 };
 use serde::{Deserialize, Serialize};
 
@@ -251,7 +249,7 @@ where
 {
     const BOUND: Bound = Bound::Unbounded;
 
-    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+    fn to_bytes(&self) -> std::borrow::Cow<'_, [u8]> {
         let bytes = bincode::serialize(self).unwrap();
         std::borrow::Cow::Owned(bytes)
     }
@@ -260,7 +258,7 @@ where
         bincode::serialize(&self).unwrap()
     }
 
-    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+    fn from_bytes(bytes: std::borrow::Cow<'_, [u8]>) -> Self {
         bincode::deserialize(bytes.as_ref()).unwrap()
     }
 }
@@ -442,14 +440,12 @@ pub trait PoolStorageAccess<P: Pools> {
 }
 
 #[doc(hidden)]
-pub fn iterator<P>() -> iter::PoolIterator<P>
+pub fn iterator<P>(memory: Memory) -> iter::PoolIterator<P>
 where
     P: Pools,
 {
-    let mm = MemoryManager::init(DefaultMemoryImpl::default());
-    let vm = mm.get(MemoryId::new(P::POOL_MEMORY));
     iter::PoolIterator {
-        inner: PoolStorage::<P::State>::init(vm),
+        inner: PoolStorage::<P::State>::init(memory),
         cursor: None,
     }
 }

@@ -30,7 +30,7 @@ impl Storable for CoinId {
         is_fixed_size: true,
     };
 
-    fn to_bytes(&self) -> alloc::borrow::Cow<[u8]> {
+    fn to_bytes(&self) -> alloc::borrow::Cow<'_, [u8]> {
         let mut bytes = vec![];
         bytes.extend_from_slice(self.block.to_be_bytes().as_ref());
         bytes.extend_from_slice(self.tx.to_be_bytes().as_ref());
@@ -44,7 +44,7 @@ impl Storable for CoinId {
         bytes
     }
 
-    fn from_bytes(bytes: alloc::borrow::Cow<[u8]>) -> Self {
+    fn from_bytes(bytes: alloc::borrow::Cow<'_, [u8]>) -> Self {
         let block: [u8; 8] = bytes.as_ref()[0..8]
             .try_into()
             .expect("failed to decode CoinId");

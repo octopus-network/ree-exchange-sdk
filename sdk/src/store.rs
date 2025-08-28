@@ -27,8 +27,9 @@ pub trait StorageType {
     fn init(memory: crate::Memory) -> Self::Type;
 }
 
-/// wrapper around `ic_stable_structures::BTreeMap` for storage
-/// use `with` and `with_mut` to access the inner structure
+/// Wrapper around `ic_stable_structures::BTreeMap` for storage.
+/// Use `with` and `with_mut` to access the inner structure.
+///
 /// reference: <https://docs.rs/ic-stable-structures/latest/ic_stable_structures/btreemap/struct.BTreeMap.html>
 pub struct StableBTreeMap<K: Storable + Ord + Clone, V: Storable> {
     _phantom: std::marker::PhantomData<(K, V)>,
@@ -46,8 +47,9 @@ where
     }
 }
 
-/// wrapper around `ic_stable_structures::Cell` for storage
-/// use `with` and `with_mut` to access the inner structure
+/// Wrapper around `ic_stable_structures::Cell` for storage.
+/// Use `with` and `with_mut` to access the inner structure.
+///
 /// reference: <https://docs.rs/ic-stable-structures/latest/ic_stable_structures/cell/struct.Cell.html>
 pub struct StableCell<T: Storable> {
     _phantom: std::marker::PhantomData<T>,
@@ -64,8 +66,9 @@ where
     }
 }
 
-/// wrapper around `ic_stable_structures::BTreeSet` for storage
-/// use `with` and `with_mut` to access the inner structure
+/// Wrapper around `ic_stable_structures::BTreeSet` for storage.
+/// Use `with` and `with_mut` to access the inner structure.
+///
 /// reference: <https://docs.rs/ic-stable-structures/latest/ic_stable_structures/btreeset/struct.BTreeSet.html>
 pub struct StableBTreeSet<T: Storable + Ord + Clone> {
     _phantom: std::marker::PhantomData<T>,
@@ -82,8 +85,9 @@ where
     }
 }
 
-/// wrapper around `ic_stable_structures::Vec` for storage
-/// use `with` and `with_mut` to access the inner structure
+/// Wrapper around `ic_stable_structures::Vec` for storage.
+/// Use `with` and `with_mut` to access the inner structure.
+///
 /// reference: <https://docs.rs/ic-stable-structures/latest/ic_stable_structures/vec/struct.Vec.html>
 pub struct StableVec<T: Storable> {
     _phantom: std::marker::PhantomData<T>,
@@ -100,8 +104,9 @@ where
     }
 }
 
-/// wrapper around `ic_stable_structures::MinHeap` for storage
-/// use `with` and `with_mut` to access the inner structure
+/// Wrapper around `ic_stable_structures::MinHeap` for storage.
+/// Use `with` and `with_mut` to access the inner structure.
+///
 /// reference: <https://docs.rs/ic-stable-structures/latest/ic_stable_structures/min_heap/struct.MinHeap.html>
 pub struct StableMinHeap<T: Storable + Ord + Clone> {
     _phantom: std::marker::PhantomData<T>,
