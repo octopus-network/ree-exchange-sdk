@@ -61,7 +61,7 @@
 //!     // The SDK will automatically commit this state to the IC stable memory.
 //!     #[action(name = "swap")]
 //!     pub async fn execute_swap(
-//!         psbt: &mut bitcoin::Psbt,
+//!         psbt: &bitcoin::Psbt,
 //!         args: ActionArgs,
 //!     ) -> ActionResult<DummyPoolState> {
 //!         let pool = DummyPools::get(&args.intention.pool_address)
@@ -70,22 +70,13 @@
 //!         // do some checks...
 //!         state.nonce = state.nonce + 1;
 //!         state.txid = args.txid.clone();
-//!         // if all check passes, invoke the chain-key API to sign the PSBT
-//!         ree_exchange_sdk::schnorr::sign_p2tr_in_psbt(
-//!             psbt,
-//!             &state.utxos,
-//!             DummyPools::network(),
-//!             pool.metadata().key_derivation_path.clone(),
-//!         )
-//!         .await
-//!         .map_err(|e| format!("Failed to sign PSBT: {}", e))?;
 //!         Ok(state)
 //!     }
 //! }
 //!
 //! #[update]
 //! pub async fn new_pool(name: String) {
-//!     let metadata = Metadata::generate_new::<DummyPools>(name.clone(), name)
+//!     let metadata = Metadata::new::<DummyPools>(name)
 //!         .await
 //!         .expect("Failed to call chain-key API");
 //!     let pool = Pool::new(metadata);
@@ -102,7 +93,9 @@
 
 #[doc(hidden)]
 pub mod reorg;
+#[doc(hidden)]
 pub mod schnorr;
+pub mod store;
 pub mod prelude {
     pub use crate::*;
     pub use ree_exchange_sdk_macro::*;
@@ -113,9 +106,7 @@ use crate::types::{
 };
 use candid::CandidType;
 use ic_stable_structures::{
-    BTreeMap, DefaultMemoryImpl, Storable,
-    memory_manager::{MemoryId, MemoryManager, VirtualMemory},
-    storable::Bound,
+    BTreeMap, DefaultMemoryImpl, Storable, memory_manager::VirtualMemory, storable::Bound,
 };
 use serde::{Deserialize, Serialize};
 
@@ -174,35 +165,9 @@ pub struct Metadata {
 }
 
 impl Metadata {
-    /// Creates a new metadata instance with the given name and key_derivation_path.
-    /// The key and address are generated based on the network.
-    #[deprecated(
-        since = "0.8.1",
-        note = "Use `generate_new` instead to create a Metadata instance."
-    )]
-    pub async fn generate<P: Pools>(
-        name: String,
-        key_derivation_path: Vec<Vec<u8>>,
-    ) -> Result<Self, String> {
-        let (key, _, address) =
-            crate::schnorr::request_p2tr_address(key_derivation_path.clone(), P::network())
-                .await
-                .map_err(|e| format!("Failed to generate pool address: {}", e))?;
-        Ok(Self {
-            key,
-            key_derivation_path,
-            name,
-            address: address.to_string(),
-        })
-    }
-
-    /// Creates a new metadata instance with the given name and key_derivation_path using IC chain-key API.
-    /// NOTE: the `key_derivation_path` doesn't follow BIP-32, it is a simple string path.
-    pub async fn generate_new<P: Pools>(
-        name: String,
-        key_derivation_path: String,
-    ) -> Result<Self, String> {
-        let key_derivation_path: Vec<Vec<u8>> = vec![key_derivation_path.into_bytes()];
+    /// Creates a new metadata instance with the given name. It will automatically generate the key and address.
+    pub async fn new<P: Pools>(name: String) -> Result<Self, String> {
+        let key_derivation_path: Vec<Vec<u8>> = vec![name.clone().into_bytes()];
         let (key, _, address) =
             crate::schnorr::request_p2tr_address(key_derivation_path.clone(), P::network())
                 .await
@@ -272,7 +237,7 @@ pub trait StateView {
 
 /// The concrete type stored in the IC stable memory.
 /// The SDK will automatically manage the pool state `S`.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Pool<S> {
     metadata: Metadata,
     states: Vec<S>,
@@ -284,7 +249,7 @@ where
 {
     const BOUND: Bound = Bound::Unbounded;
 
-    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+    fn to_bytes(&self) -> std::borrow::Cow<'_, [u8]> {
         let bytes = bincode::serialize(self).unwrap();
         std::borrow::Cow::Owned(bytes)
     }
@@ -293,7 +258,7 @@ where
         bincode::serialize(&self).unwrap()
     }
 
-    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+    fn from_bytes(bytes: std::borrow::Cow<'_, [u8]>) -> Self {
         bincode::deserialize(bytes.as_ref()).unwrap()
     }
 }
@@ -443,9 +408,6 @@ pub trait Pools {
 /// It must be implemented over the `Pools` type and marked as `#[ree_exchange_sdk::hook]`.
 /// NOTE: Any modification to the pool state within `Hook` would cause panic.
 pub trait Hook: Pools {
-    /// This function is called when a new block is received, before any processing.
-    fn pre_new_block(_args: NewBlockInfo) {}
-
     /// This function is called when a transaction is dropped from the mempool.
     fn on_tx_rollbacked(
         _address: String,
@@ -461,8 +423,8 @@ pub trait Hook: Pools {
     /// This function is called when a transaction reaches the finalize threshold.
     fn on_tx_finalized(_address: String, _txid: Txid, _block: Block) {}
 
-    /// This function is called after a new block is processed.
-    fn post_new_block(_args: NewBlockInfo) {}
+    /// This function is called when a block is considered finalized.
+    fn on_block_finalized(_block: NewBlockInfo) {}
 }
 
 /// A trait for accessing the pool storage.
@@ -478,14 +440,12 @@ pub trait PoolStorageAccess<P: Pools> {
 }
 
 #[doc(hidden)]
-pub fn iterator<P>() -> iter::PoolIterator<P>
+pub fn iterator<P>(memory: Memory) -> iter::PoolIterator<P>
 where
     P: Pools,
 {
-    let mm = MemoryManager::init(DefaultMemoryImpl::default());
-    let vm = mm.get(MemoryId::new(P::POOL_MEMORY));
     iter::PoolIterator {
-        inner: PoolStorage::<P::State>::init(vm),
+        inner: PoolStorage::<P::State>::init(memory),
         cursor: None,
     }
 }

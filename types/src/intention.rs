@@ -1,5 +1,9 @@
-use crate::{CoinBalance, CoinId, Utxo};
+use crate::{
+    CoinBalance, CoinId, Utxo,
+    bitcoin::{OutPoint, Txid},
+};
 use alloc::collections::BTreeSet;
+use alloc::str::FromStr;
 use candid::CandidType;
 use serde::{Deserialize, Serialize};
 
@@ -45,6 +49,23 @@ pub struct IntentionSet {
 }
 
 impl Intention {
+    pub fn pool_outpoints(&self) -> Result<Vec<OutPoint>, Box<dyn std::error::Error>> {
+        let outpoints: Vec<_> = self
+            .pool_utxo_spent
+            .iter()
+            .flat_map(|outpoint| {
+                let parts = outpoint.split(':').collect::<Vec<_>>();
+                let txid = parts.get(0).map(|s| Txid::from_str(s).ok()).flatten()?;
+                let vout = parts.get(1).map(|s| s.parse::<u32>().ok()).flatten()?;
+                Some(OutPoint { txid, vout })
+            })
+            .collect();
+        if outpoints.len() != self.pool_utxo_spent.len() {
+            return Err("Invalid outpoint format".into());
+        }
+        return Ok(outpoints);
+    }
+
     pub fn input_coin_ids(&self) -> Vec<CoinId> {
         self.input_coins
             .iter()

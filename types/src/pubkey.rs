@@ -54,7 +54,7 @@ impl Storable for Pubkey {
         is_fixed_size: true,
     };
 
-    fn to_bytes(&self) -> alloc::borrow::Cow<[u8]> {
+    fn to_bytes(&self) -> alloc::borrow::Cow<'_, [u8]> {
         alloc::borrow::Cow::Borrowed(&self.0)
     }
 
@@ -62,7 +62,7 @@ impl Storable for Pubkey {
         self.0
     }
 
-    fn from_bytes(bytes: alloc::borrow::Cow<[u8]>) -> Self {
+    fn from_bytes(bytes: alloc::borrow::Cow<'_, [u8]>) -> Self {
         Self::from_raw(bytes.to_vec()).expect("Couldn't deserialize pubkey from stable memory")
     }
 }

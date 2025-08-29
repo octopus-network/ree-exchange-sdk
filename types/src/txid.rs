@@ -33,7 +33,7 @@ impl FromStr for Txid {
 }
 
 impl Storable for Txid {
-    fn to_bytes(&self) -> Cow<[u8]> {
+    fn to_bytes(&self) -> Cow<'_, [u8]> {
         let bytes = bincode::serialize(self).unwrap();
         Cow::Owned(bytes)
     }
@@ -42,7 +42,7 @@ impl Storable for Txid {
         bincode::serialize(&self).unwrap()
     }
 
-    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+    fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
         bincode::deserialize(bytes.as_ref()).unwrap()
     }
 
@@ -145,7 +145,7 @@ pub struct TxRecord {
 }
 
 impl Storable for TxRecord {
-    fn to_bytes(&self) -> Cow<[u8]> {
+    fn to_bytes(&self) -> Cow<'_, [u8]> {
         let bytes = bincode::serialize(self).unwrap();
         Cow::Owned(bytes)
     }
@@ -154,7 +154,7 @@ impl Storable for TxRecord {
         bincode::serialize(&self).unwrap()
     }
 
-    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+    fn from_bytes(bytes: Cow<'_, [u8]>) -> Self {
         bincode::deserialize(bytes.as_ref()).unwrap()
     }
 
