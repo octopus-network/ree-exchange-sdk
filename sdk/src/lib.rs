@@ -8,7 +8,7 @@
 //! use ree_exchange_sdk::{prelude::*, types::*};
 //! use serde::{Deserialize, Serialize};
 //!
-//! #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
+//! #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
 //! pub struct DummyPoolState {
 //!     pub txid: Txid,
 //!     pub nonce: u64,

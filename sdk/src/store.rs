@@ -4,10 +4,12 @@
 //! ```
 //! #[exchange]
 //! pub mod exchange {
-//!     use ree_exchange_sdk::store::StableBTreeMap;
+//!     use ree_exchange_sdk::store::*;
+//!
+//!     // ... other code ...
 //!
 //!     // Define a storage type using the StableBTreeMap wrapper with `MemoryId = 0`
-//!     #[storage(0)]
+//!     #[storage(memory = 0)]
 //!     pub type DummyStorage = StableBTreeMap<String, String>;
 //!
 //!     // Now you can use `DummyStorage` in your exchange module
@@ -15,6 +17,14 @@
 //!     pub fn new_pool() {
 //!         DummyStorage::with_mut(|map| map.insert("hello".to_string(), "world".to_string()));
 //!     }
+//! }
+//!
+//! // if you want to use the storage outside the exchange module, you can do it like this:
+//! use self::exchange::*;
+//!
+//! #[ic_cdk::update]
+//! pub fn use_storage_outside() {
+//!    DummyStorage::with_mut(|map| map.insert("foo".to_string(), "bar".to_string()));
 //! }
 //! ```
 
