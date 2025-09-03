@@ -65,7 +65,15 @@ fn detect_reorg(
                     ic_cdk::println!("Reorg depth is greater than the max recoverable reorg depth");
                     return Err(Error::Unrecoverable);
                 }
-                let target_block = blocks.get(&new_block.block_height).unwrap();
+                let target_block = blocks
+                    .get(&new_block.block_height)
+                    .ok_or(Error::Unrecoverable)
+                    .inspect_err(|_| {
+                        ic_cdk::println!(
+                            "Detected reorg at {}, but it was removed.",
+                            new_block.block_height
+                        )
+                    })?;
                 if target_block.block_hash == new_block.block_hash {
                     ic_cdk::println!("New block is a duplicate block");
                     return Err(Error::DuplicateBlock {
@@ -87,12 +95,15 @@ fn handle_reorg(
     transactions: &mut TransactionStorage,
     height: u32,
     depth: u32,
-) {
+) -> Result<(), Error> {
     ic_cdk::println!("rolling back state after reorg of depth {depth} at height {height}");
 
     for h in (height - depth + 1..=height).rev() {
         ic_cdk::println!("rolling back change record at height {h}");
-        let block = blocks.get(&h).unwrap();
+        let block = blocks
+            .get(&h)
+            .ok_or(Error::Unrecoverable)
+            .inspect_err(|_| ic_cdk::println!("Handling reorg at {h}, but it was removed.",))?;
         for txid in block.confirmed_txids.iter() {
             if let Some(record) = transactions.remove(&(*txid, true)) {
                 transactions.insert((*txid, false), record);
@@ -106,6 +117,7 @@ fn handle_reorg(
         "successfully rolled back state to height {}",
         height - depth,
     );
+    Ok(())
 }
 
 pub fn rollback_tx<P>(
@@ -158,6 +170,7 @@ pub fn new_block<P>(
 where
     P: Hook,
 {
+    P::on_new_block(args.clone());
     // Check for blockchain reorganizations
     match detect_reorg(blocks, P::finalize_threshold(), args.clone()) {
         Ok(_) => {}
@@ -172,7 +185,7 @@ where
             return Err("Unrecoverable reorg detected".to_string());
         }
         Err(Error::Recoverable { height, depth }) => {
-            handle_reorg(blocks, transactions, height, depth);
+            handle_reorg(blocks, transactions, height, depth).map_err(|e| format!("{:?}", e))?;
         }
     }
     let NewBlockArgs {
@@ -188,7 +201,7 @@ where
         timestamp: block_timestamp,
     };
 
-    blocks.insert(block_height, args.clone());
+    blocks.insert(block_height, args);
 
     // Mark transactions as confirmed
     for txid in confirmed_txids {
