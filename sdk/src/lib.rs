@@ -442,6 +442,83 @@ pub trait PoolStorageAccess<P: Pools> {
     fn iter() -> iter::PoolIterator<P>;
 }
 
+/// The Upgrade trait is used to handle state migrations when the state type of a Pools implementation changes.
+/// Assume `MyPools` originally has a state type `MyState`.
+///
+/// ```rust
+/// #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
+/// pub struct MyState {
+///     pub txid: Txid,
+///     pub nonce: u64,
+///     pub coin_reserved: Vec<CoinBalance>,
+///     pub btc_reserved: u64,
+///     pub utxos: Vec<Utxo>,
+///     pub attributes: String,
+/// }
+///
+/// impl Pools for MyPools {
+///     type State = MyState;
+///
+///     const POOL_MEMORY: u8 = 102;
+/// }
+/// ```
+/// Now we would like to update the `MyState` type.
+///
+/// The best practice is to rename the `MyState` to `OldState` and define a new state type `MyState`
+///
+/// ```rust
+/// #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
+/// pub struct OldState {
+///     pub txid: Txid,
+///     pub nonce: u64,
+///     pub coin_reserved: Vec<CoinBalance>,
+///     pub btc_reserved: u64,
+///     pub utxos: Vec<Utxo>,
+///     pub attributes: String,
+/// }
+///
+/// #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
+/// pub struct MyState {
+///     pub txid: Txid,
+///     pub nonce: u64,
+///     pub coin_reserved: Vec<CoinBalance>,
+///     pub btc_reserved: u64,
+///     pub utxos: Vec<Utxo>,
+///     pub attributes: String,
+///     pub new_field: u32,
+/// }
+///
+/// impl Into<MyState> for OldState {
+///     fn into(self) -> MyState {
+///         // ...
+///     }
+/// }
+///
+/// #[upgrade]
+/// impl Upgrade<MyPools> for MyPools {
+///     type State = OldState;
+///
+///     // there is where we store the pool data before upgrade
+///     const POOL_MEMORY: u8 = 102;
+/// }
+///
+/// impl Pools for MyPools {
+///     type State = MyState;
+///
+///     // this is where we store the pool data after upgrade
+///     const POOL_MEMORY: u8 = 103;
+/// }
+///
+/// ```
+/// Now you can call `MyPools::upgrade()` in the `post_upgrade` hook.
+pub trait Upgrade<P: Pools> {
+    /// The previous state type before the upgrade.
+    type State: Into<P::State> + for<'de> Deserialize<'de> + Clone;
+
+    /// The memory ID for the pool storage in the previous version.
+    const POOL_MEMORY: u8;
+}
+
 #[doc(hidden)]
 pub fn iterator<P>(memory: Memory) -> iter::PoolIterator<P>
 where

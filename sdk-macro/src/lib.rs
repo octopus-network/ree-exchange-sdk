@@ -8,11 +8,13 @@ struct CanisterVisitor {
     actions: BTreeMap<String, (String, bool)>,
     pools: Option<Ident>,
     hook_present: bool,
+    upgrade_declared: bool,
     storages: BTreeMap<u8, (proc_macro2::TokenStream, proc_macro2::TokenStream)>,
 }
 
 mod keywords {
     syn::custom_keyword!(exchange);
+    syn::custom_keyword!(upgrade);
     syn::custom_keyword!(pools);
     syn::custom_keyword!(hook);
     syn::custom_keyword!(storage);
@@ -99,6 +101,7 @@ impl CanisterVisitor {
             actions: BTreeMap::new(),
             pools: None,
             hook_present: false,
+            upgrade_declared: false,
             storages: BTreeMap::new(),
         }
     }
@@ -221,6 +224,9 @@ impl VisitMut for CanisterVisitor {
     fn visit_item_impl_mut(&mut self, item: &mut syn::ItemImpl) {
         if let Some(_attr) = item.attrs.iter().find(|a| a.path().is_ident("hook")) {
             self.hook_present = true;
+        }
+        if let Some(_attr) = item.attrs.iter().find(|a| a.path().is_ident("upgrade")) {
+            self.upgrade_declared = true;
         }
         syn::visit_mut::visit_item_impl_mut(self, item);
     }
@@ -485,6 +491,40 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                #(#storage_decl)*
             }
         });
+
+        if visitor.upgrade_declared {
+            items.push(parse_quote! {
+                impl #pools {
+                    pub fn upgrade() {
+                        let id = <#pools as ::ree_exchange_sdk::Upgrade<#pools>>::POOL_MEMORY;
+                        let memory_id = ::ic_stable_structures::memory_manager::MemoryId::new(id);
+                        let memory = __MEMORY_MANAGER.with(|m| m.borrow().get(memory_id));
+                        let mut storage = ::ic_stable_structures::StableBTreeMap::<
+                            ::std::string::String,
+                            ::ree_exchange_sdk::Pool<<#pools as ::ree_exchange_sdk::Upgrade<#pools>>::State>,
+                            ::ic_stable_structures::memory_manager::VirtualMemory<::ic_stable_structures::DefaultMemoryImpl>,
+                        >::init(memory);
+                        self::__CURRENT_POOLS.with_borrow_mut(|pools| {
+                            for entry in storage.iter() {
+                                let old_pool = entry.value();
+                                let states = old_pool.states()
+                                    .iter()
+                                    .map(|s| <<#pools as ::ree_exchange_sdk::Upgrade<#pools>>::State as ::std::clone::Clone>::clone(s))
+                                    .map(|s| <<#pools as ::ree_exchange_sdk::Upgrade<#pools>>::State as ::std::convert::Into<<#pools as ::ree_exchange_sdk::Pools>::State>>::into(s))
+                                    .collect::<Vec<<#pools as ::ree_exchange_sdk::Pools>::State>>();
+                                let mut new_pool = ::ree_exchange_sdk::Pool::new(
+                                    old_pool.metadata().clone(),
+                                );
+                                new_pool.states_mut().extend(states);
+                                pools.insert(entry.key().clone(), new_pool);
+                            }
+                        });
+                        storage.clear_new();
+                    }
+                }
+            });
+        }
+
         items.push(parse_quote! {
             pub trait __CustomStorageAccess<S: ::ree_exchange_sdk::store::StorageType> {
                 fn with<F, R>(f: F) -> R
@@ -541,5 +581,80 @@ pub fn storage(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_attribute]
 pub fn hook(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+/// Upgrade attribute for pool state migration.
+///
+/// Assume `MyPools` originally has a state type `MyState`.
+///
+/// ```rust
+/// #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
+/// pub struct MyState {
+///     pub txid: Txid,
+///     pub nonce: u64,
+///     pub coin_reserved: Vec<CoinBalance>,
+///     pub btc_reserved: u64,
+///     pub utxos: Vec<Utxo>,
+///     pub attributes: String,
+/// }
+///
+/// impl Pools for MyPools {
+///     type State = MyState;
+///
+///     const POOL_MEMORY: u8 = 102;
+/// }
+/// ```
+/// Now we would like to update the `MyState` type.
+///
+/// The best practice is to rename the `MyState` to `OldState` and define a new state type `MyState`
+///
+/// ```rust
+/// #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
+/// pub struct OldState {
+///     pub txid: Txid,
+///     pub nonce: u64,
+///     pub coin_reserved: Vec<CoinBalance>,
+///     pub btc_reserved: u64,
+///     pub utxos: Vec<Utxo>,
+///     pub attributes: String,
+/// }
+///
+/// #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
+/// pub struct MyState {
+///     pub txid: Txid,
+///     pub nonce: u64,
+///     pub coin_reserved: Vec<CoinBalance>,
+///     pub btc_reserved: u64,
+///     pub utxos: Vec<Utxo>,
+///     pub attributes: String,
+///     pub new_field: u32,
+/// }
+///
+/// impl Into<MyState> for OldState {
+///     fn into(self) -> MyState {
+///         // ...
+///     }
+/// }
+///
+/// #[upgrade]
+/// impl Upgrade<MyPools> for MyPools {
+///     type State = OldState;
+///
+///     // there is where we store the pool data before upgrade
+///     const POOL_MEMORY: u8 = 102;
+/// }
+///
+/// impl Pools for MyPools {
+///     type State = MyState;
+///
+///     // this is where we store the pool data after upgrade
+///     const POOL_MEMORY: u8 = 103;
+/// }
+///
+/// ```
+/// Now you can call `MyPools::upgrade()` in the `post_upgrade` hook.
+#[proc_macro_attribute]
+pub fn upgrade(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
