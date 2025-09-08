@@ -30,7 +30,7 @@ pub struct CoinBalance {
 }
 
 /// The CoinBalances struct is a collection of CoinBalance objects.
-#[derive(CandidType, Eq, PartialEq, Clone, Debug, Deserialize, Serialize)]
+#[derive(CandidType, Eq, PartialEq, Clone, Debug, Deserialize, Serialize, Default)]
 pub struct CoinBalances(Vec<CoinBalance>);
 
 /// The Bitcoin UTXO with Runes coin balances.
@@ -75,6 +75,10 @@ impl Utxo {
 impl CoinBalances {
     pub fn new() -> Self {
         Self(vec![])
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
     //
     pub fn iter(&self) -> impl Iterator<Item = &CoinBalance> {
