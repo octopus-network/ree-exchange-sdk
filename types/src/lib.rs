@@ -77,6 +77,10 @@ impl CoinBalances {
         Self(vec![])
     }
 
+    pub fn single(coin: CoinBalance) -> Self {
+        Self(vec![coin])
+    }
+
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
