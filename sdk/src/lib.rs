@@ -428,6 +428,9 @@ pub trait Hook: Pools {
 
     /// This function is called when a block is received.
     fn on_new_block(_block: NewBlockInfo) {}
+
+    /// This function is called after a block is received.
+    fn after_new_block(_block: NewBlockInfo) {}
 }
 
 /// A trait for accessing the pool storage.
