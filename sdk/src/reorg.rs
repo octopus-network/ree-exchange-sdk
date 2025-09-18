@@ -201,7 +201,7 @@ where
         timestamp: block_timestamp,
     };
 
-    blocks.insert(block_height, args);
+    blocks.insert(block_height, args.clone());
 
     // Mark transactions as confirmed
     for txid in confirmed_txids {
@@ -259,5 +259,6 @@ where
             P::on_block_finalized(block);
         }
     }
+    P::after_new_block(args);
     Ok(())
 }
