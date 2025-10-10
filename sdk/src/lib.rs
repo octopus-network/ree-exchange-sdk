@@ -527,9 +527,12 @@ pub fn iterator<P>(memory: Memory) -> iter::PoolIterator<P>
 where
     P: Pools,
 {
+    let inner = PoolStorage::<P::State>::init(memory);
+    let keys = inner.keys().collect::<Vec<_>>();
     iter::PoolIterator {
-        inner: PoolStorage::<P::State>::init(memory),
-        cursor: None,
+        inner,
+        cursor: 0,
+        keys,
     }
 }
 
@@ -537,7 +540,8 @@ where
 pub mod iter {
     pub struct PoolIterator<P: super::Pools> {
         pub(crate) inner: super::PoolStorage<P::State>,
-        pub(crate) cursor: Option<String>,
+        pub(crate) cursor: usize,
+        pub(crate) keys: Vec<String>,
     }
 
     impl<P> std::iter::Iterator for PoolIterator<P>
@@ -547,26 +551,12 @@ pub mod iter {
         type Item = (String, super::Pool<P::State>);
 
         fn next(&mut self) -> Option<Self::Item> {
-            match self.cursor {
-                Some(ref cursor) => match self
-                    .inner
-                    .iter_from_prev_key(cursor)
-                    .next()
-                    .map(|e| e.into_pair())
-                {
-                    Some((k, v)) => {
-                        self.cursor = Some(k.clone());
-                        Some((k, v))
-                    }
-                    None => None,
-                },
-                None => match self.inner.iter().next().map(|e| e.into_pair()) {
-                    Some((k, v)) => {
-                        self.cursor = Some(k.clone());
-                        Some((k, v))
-                    }
-                    None => None,
-                },
+            if self.cursor < self.keys.len() {
+                let key = self.keys[self.cursor].clone();
+                self.cursor += 1;
+                self.inner.get(&key).map(|v| (key.clone(), v))
+            } else {
+                None
             }
         }
     }
