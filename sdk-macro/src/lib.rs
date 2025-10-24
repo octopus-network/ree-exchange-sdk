@@ -275,17 +275,21 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
         items.push(parse_quote! {
             impl ::ree_exchange_sdk::PoolStorageAccess<#pools> for #pools {
-                fn get(address: &::std::string::String) -> ::std::option::Option<::ree_exchange_sdk::Pool<<#pools as ::ree_exchange_sdk::Pools>::State>> {
+                fn global_state() -> ::std::option::Option<<#pools as ::ree_exchange_sdk::Pools>::GlobalState> {
+                    self::__GLOBAL_STATE.with_borrow(|p| p.last_key_value().map(|(k, v)| v.inner))
+                }
+
+                fn get(address: &::std::string::String) -> ::std::option::Option<::ree_exchange_sdk::Pool<<#pools as ::ree_exchange_sdk::Pools>::PoolState>> {
                     self::__CURRENT_POOLS.with_borrow(|p| p.get(address))
                 }
 
-                fn insert(pool: ::ree_exchange_sdk::Pool<<#pools as ::ree_exchange_sdk::Pools>::State>) {
+                fn insert(pool: ::ree_exchange_sdk::Pool<<#pools as ::ree_exchange_sdk::Pools>::PoolState>) {
                     self::__CURRENT_POOLS.with_borrow_mut(|p| {
                         p.insert(pool.metadata().address.clone(), pool);
                     });
                 }
 
-                fn remove(address: &::std::string::String) -> ::std::option::Option<::ree_exchange_sdk::Pool<<#pools as ::ree_exchange_sdk::Pools>::State>> {
+                fn remove(address: &::std::string::String) -> ::std::option::Option<::ree_exchange_sdk::Pool<<#pools as ::ree_exchange_sdk::Pools>::PoolState>> {
                     self::__CURRENT_POOLS.with_borrow_mut(|p| {
                         p.remove(address)
                     })
@@ -313,12 +317,12 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 let inputs = args.intention.pool_outpoints()
                     .map_err(|e| format!("Failed to deserialize input outpoints: {}", e))?;
                 let action = args.intention.action.clone();
-                let result: ::ree_exchange_sdk::ActionResult::<<#pools as ::ree_exchange_sdk::Pools>::State> = match action.as_str() {
+                let result: ::ree_exchange_sdk::ActionResult::<<#pools as ::ree_exchange_sdk::Pools>::PoolState> = match action.as_str() {
                     #(#branch)*
-                    _ => ::ree_exchange_sdk::ActionResult::<<#pools as ::ree_exchange_sdk::Pools>::State>::Err(format!("Unknown action: {}", action)),
+                    _ => ::ree_exchange_sdk::ActionResult::<<#pools as ::ree_exchange_sdk::Pools>::PoolState>::Err(format!("Unknown action: {}", action)),
                 };
                 match result {
-                    ::ree_exchange_sdk::ActionResult::<<#pools as ::ree_exchange_sdk::Pools>::State>::Ok(r) => {
+                    ::ree_exchange_sdk::ActionResult::<<#pools as ::ree_exchange_sdk::Pools>::PoolState>::Ok(r) => {
                         let mut pool = self::__CURRENT_POOLS.with_borrow(|pools| {
                             pools.get(&pool_address).clone()
                         }).ok_or(format!("Pool {} not found", pool_address))?;
@@ -333,15 +337,15 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                             pools.insert(pool_address.clone(), pool);
                         });
                         self::__TX_RECORDS.with_borrow_mut(|m| {
-                            let mut record = m.get(&(txid.clone(), false)).unwrap_or_default();
+                            let mut record = m.get(&txid).unwrap_or_default();
                             if !record.pools.contains(&pool_address) {
                                 record.pools.push(pool_address.clone());
                             }
-                            m.insert((txid, false), record);
+                            m.insert(txid, record);
                         });
                         ::core::result::Result::<String, String>::Ok(psbt.serialize_hex())
                     }
-                    ::ree_exchange_sdk::ActionResult::<<#pools as ::ree_exchange_sdk::Pools>::State>::Err(e) => {
+                    ::ree_exchange_sdk::ActionResult::<<#pools as ::ree_exchange_sdk::Pools>::PoolState>::Err(e) => {
                         ::core::result::Result::<String, String>::Err(e)
                     }
                 }
@@ -379,7 +383,7 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 ::ree_exchange_sdk::ensure_access::<#pools>()?;
                 self::__TX_RECORDS.with_borrow_mut(|transactions| {
                     self::__CURRENT_POOLS.with_borrow_mut(|pools| {
-                        ::ree_exchange_sdk::reorg::rollback_tx::<#pools>(transactions, pools, args)
+                        ::ree_exchange_sdk::states::rollback_tx::<#pools>(transactions, pools, args)
                     })
                 })
             }
@@ -394,12 +398,15 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 self::__TX_RECORDS.with_borrow_mut(|transactions| {
                     self::__CURRENT_POOLS.with_borrow_mut(|pools| {
                         self::__BLOCKS.with_borrow_mut(|blocks| {
-                            ::ree_exchange_sdk::reorg::new_block::<#pools>(
-                                blocks,
-                                transactions,
-                                pools,
-                                args
-                            )
+                            self::__GLOBAL_STATE.with_borrow_mut(|global_state| {
+                                ::ree_exchange_sdk::states::new_block::<#pools>(
+                                    blocks,
+                                    transactions,
+                                    pools,
+                                    global_state,
+                                    args
+                                )
+                            })
                         })
                     })
                 })
@@ -450,7 +457,7 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 static __BLOCKS: ::core::cell::RefCell<
                     ::ic_stable_structures::StableBTreeMap<
                         u32,
-                        ::ree_exchange_sdk::types::exchange_interfaces::NewBlockInfo,
+                        ::ree_exchange_sdk::Block,
                         ::ic_stable_structures::memory_manager::VirtualMemory<::ic_stable_structures::DefaultMemoryImpl>
                     >
                 > = ::core::cell::RefCell::new(
@@ -462,7 +469,7 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 );
                 static __TX_RECORDS: ::core::cell::RefCell<
                     ::ic_stable_structures::StableBTreeMap<
-                        (::ree_exchange_sdk::types::Txid, bool),
+                        ::ree_exchange_sdk::types::Txid,
                         ::ree_exchange_sdk::types::TxRecord,
                         ::ic_stable_structures::memory_manager::VirtualMemory<::ic_stable_structures::DefaultMemoryImpl>
                     >
@@ -477,7 +484,7 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     ::ic_stable_structures::StableBTreeMap<
                         ::std::string::String,
                         ::ree_exchange_sdk::Pool<
-                            <#pools as ::ree_exchange_sdk::Pools>::State
+                            <#pools as ::ree_exchange_sdk::Pools>::PoolState
                         >,
                         ::ic_stable_structures::memory_manager::VirtualMemory<::ic_stable_structures::DefaultMemoryImpl>
                     >
@@ -488,7 +495,20 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         ))),
                     )
                 );
-               #(#storage_decl)*
+                static __GLOBAL_STATE: ::core::cell::RefCell<
+                    ::ic_stable_structures::StableBTreeMap<
+                        u32,
+                        ::ree_exchange_sdk::GlobalStateWrapper<<#pools as ::ree_exchange_sdk::Pools>::GlobalState>,
+                        ::ic_stable_structures::memory_manager::VirtualMemory<::ic_stable_structures::DefaultMemoryImpl>
+                    >
+                > = ::core::cell::RefCell::new(
+                    ::ic_stable_structures::StableBTreeMap::init(
+                        __MEMORY_MANAGER.with(|m| m.borrow().get(::ic_stable_structures::memory_manager::MemoryId::new(
+                            <#pools as ::ree_exchange_sdk::Pools>::GLOBAL_MEMORY
+                        ))),
+                    )
+                );
+                #(#storage_decl)*
             }
         });
 
@@ -501,7 +521,7 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         let memory = __MEMORY_MANAGER.with(|m| m.borrow().get(memory_id));
                         let mut storage = ::ic_stable_structures::StableBTreeMap::<
                             ::std::string::String,
-                            ::ree_exchange_sdk::Pool<<#pools as ::ree_exchange_sdk::Upgrade<#pools>>::State>,
+                            ::ree_exchange_sdk::Pool<<#pools as ::ree_exchange_sdk::Upgrade<#pools>>::PoolState>,
                             ::ic_stable_structures::memory_manager::VirtualMemory<::ic_stable_structures::DefaultMemoryImpl>,
                         >::init(memory);
                         self::__CURRENT_POOLS.with_borrow_mut(|pools| {
@@ -509,9 +529,9 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                                 let old_pool = entry.value();
                                 let states = old_pool.states()
                                     .iter()
-                                    .map(|s| <<#pools as ::ree_exchange_sdk::Upgrade<#pools>>::State as ::std::clone::Clone>::clone(s))
-                                    .map(|s| <<#pools as ::ree_exchange_sdk::Upgrade<#pools>>::State as ::std::convert::Into<<#pools as ::ree_exchange_sdk::Pools>::State>>::into(s))
-                                    .collect::<Vec<<#pools as ::ree_exchange_sdk::Pools>::State>>();
+                                    .map(|s| <<#pools as ::ree_exchange_sdk::Upgrade<#pools>>::PoolState as ::std::clone::Clone>::clone(s))
+                                    .map(|s| <<#pools as ::ree_exchange_sdk::Upgrade<#pools>>::PoolState as ::std::convert::Into<<#pools as ::ree_exchange_sdk::Pools>::PoolState>>::into(s))
+                                    .collect::<Vec<<#pools as ::ree_exchange_sdk::Pools>::PoolState>>();
                                 let mut new_pool = ::ree_exchange_sdk::Pool::new(
                                     old_pool.metadata().clone(),
                                 );
@@ -549,7 +569,7 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 /// Action entrypoint. The macro could be
 /// `#[action(name = "my_action")]` or `#[action("my_action")]` or `#[action]`.
-/// The functions shall have signature `fn(&bitcoin::Psbt, ActionArgs) -> ActionResult<Pools::State>`
+/// The functions shall have signature `fn(&bitcoin::Psbt, ActionArgs) -> ActionResult<Pools::PoolState>`
 #[proc_macro_attribute]
 pub fn action(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
@@ -571,10 +591,16 @@ pub fn storage(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
-/// Optional hook for `Pools`. It should be marked on the `Hook` impl block of the `Pools` struct.
+/// Optional global block state storage for the exchange.
+#[proc_macro_attribute]
+pub fn global(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+/// Optional hook for `Pools`. It should be marked on the `Hook` impl block of the `Global` struct.
 /// ```rust
 /// #[hook]
-/// impl Hook for MyPools {
+/// impl Hook for BlockState {
 /// ...
 /// }
 ///
@@ -639,14 +665,14 @@ pub fn hook(_attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// #[upgrade]
 /// impl Upgrade<MyPools> for MyPools {
-///     type State = OldState;
+///     type PoolState = OldState;
 ///
 ///     // there is where we store the pool data before upgrade
 ///     const POOL_MEMORY: u8 = 102;
 /// }
 ///
 /// impl Pools for MyPools {
-///     type State = MyState;
+///     type PoolState = MyState;
 ///
 ///     // this is where we store the pool data after upgrade
 ///     const POOL_MEMORY: u8 = 103;
