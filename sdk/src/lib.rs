@@ -35,18 +35,17 @@
 //! pub mod exchange {
 //!     use super::*;
 //!
-//!
 //!     #[pools]
 //!     pub struct DummyPools;
 //!
 //!     impl Pools for DummyPools {
-//!         type State = DummyPoolState;
+//!         type PoolState = DummyPoolState;
 //!
-//!         const POOL_MEMORY: u8 = 102;
+//!         type BlockState = u32;
 //!
-//!         const BLOCK_MEMORY: u8 = 100;
+//!         const POOL_STATE_MEMORY: u8 = 1;
 //!
-//!         const TRANSACTION_MEMORY: u8 = 101;
+//!         const BLOCK_STATE_MEMORY: u8 = 2;
 //!
 //!         fn network() -> Network {
 //!             Network::Testnet4
@@ -411,19 +410,13 @@ pub trait Pools {
     type PoolState: StateView + Serialize + for<'de> Deserialize<'de>;
 
     /// The concret type of the global state.
-    type GlobalState: Serialize + for<'de> Deserialize<'de>;
+    type BlockState: Serialize + for<'de> Deserialize<'de>;
 
-    /// The memory ID for the global state storage.
-    const GLOBAL_MEMORY: u8;
+    /// The memory ID for the block state storage.
+    const BLOCK_STATE_MEMORY: u8;
 
-    /// The memory ID for the pool storage.
-    const POOL_MEMORY: u8;
-
-    /// The memory ID for the block storage.
-    const BLOCK_MEMORY: u8;
-
-    /// The memory ID for the transaction storage.
-    const TRANSACTION_MEMORY: u8;
+    /// The memory ID for the pool state storage.
+    const POOL_STATE_MEMORY: u8;
 
     /// useful for ensuring that the exchange is running on the correct network.
     fn network() -> Network;
@@ -435,20 +428,17 @@ pub trait Pools {
     }
 }
 
-/// A set of hooks that can be implemented to respond to various events in the exchange lifecycle.
+/// A hook that can be implemented to respond to block event in the exchange lifecycle.
 /// It must be implemented over the `BlockState` type and marked as `#[ree_exchange_sdk::hook]`.
 pub trait Hook: Pools {
-    // This function is called when a block is considered finalized.
-    // fn on_block_finalized(_global: &mut Option<Pools::GlobalState>, _block: Block) {}
-
     /// This function is called when a block is received.
-    fn on_block_confirmed(_global: &mut Option<Self::GlobalState>, _block: Block) {}
+    fn on_block_confirmed(_global: &mut Option<Self::BlockState>, _block: Block) {}
 }
 
 /// A trait for accessing the pool storage.
 /// The user-defined `Pools` type will automatically implement this trait.
 pub trait PoolStorageAccess<P: Pools> {
-    fn global_state() -> Option<P::GlobalState>;
+    fn block_state() -> Option<P::BlockState>;
 
     fn get(address: &String) -> Option<Pool<P::PoolState>>;
 
@@ -494,32 +484,41 @@ where
 }
 
 /// The Upgrade trait is used to handle state migrations when the state type of a Pools implementation changes.
-/// Assume `MyPools` originally has a state type `MyState`.
+/// Assume `MyPools` originally has a pool state type `MyPoolState` and block state type `MyBlockState`.
 ///
 /// ```rust
 /// #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
-/// pub struct MyState {
+/// pub struct MyPoolState {
 ///     pub txid: Txid,
 ///     pub nonce: u64,
 ///     pub coin_reserved: Vec<CoinBalance>,
 ///     pub btc_reserved: u64,
 ///     pub utxos: Vec<Utxo>,
 ///     pub attributes: String,
+/// }
+///
+/// #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
+/// pub struct MyBlockState {
+///     pub block_number: u32,
 /// }
 ///
 /// impl Pools for MyPools {
-///     type State = MyState;
+///     type PoolState = MyPoolState;
 ///
-///     const POOL_MEMORY: u8 = 102;
+///     type BlockState = MyBlockState;
+///
+///     const POOL_STATE_MEMORY: u8 = 1;
+///
+///     const BLOCK_STATE_MEMORY: u8 = 2;
 /// }
 /// ```
-/// Now we would like to update the `MyState` type.
+/// Now we would like to update the `MyPoolState` type.
 ///
-/// The best practice is to rename the `MyState` to `OldState` and define a new state type `MyState`
+/// The best practice is to rename the `MyPoolState` to `OldPoolState` and define a new state type `MyPoolState`
 ///
 /// ```rust
 /// #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
-/// pub struct OldState {
+/// pub struct OldPoolState {
 ///     pub txid: Txid,
 ///     pub nonce: u64,
 ///     pub coin_reserved: Vec<CoinBalance>,
@@ -529,7 +528,7 @@ where
 /// }
 ///
 /// #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
-/// pub struct MyState {
+/// pub struct MyPoolState {
 ///     pub txid: Txid,
 ///     pub nonce: u64,
 ///     pub coin_reserved: Vec<CoinBalance>,
@@ -547,17 +546,25 @@ where
 ///
 /// #[upgrade]
 /// impl Upgrade<MyPools> for MyPools {
-///     type State = OldState;
+///     type PoolState = OldState;
+///
+///     type BlockState = u32;
 ///
 ///     // there is where we store the pool data before upgrade
-///     const POOL_MEMORY: u8 = 102;
+///     const POOL_STATE_MEMORY: u8 = 1;
+///
+///     const BLOCK_STATE_MEMORY: u8 = 2;
 /// }
 ///
 /// impl Pools for MyPools {
-///     type State = MyState;
+///     type PoolState = MyPoolState;
+///
+///     type BlockState = u32;
 ///
 ///     // this is where we store the pool data after upgrade
-///     const POOL_MEMORY: u8 = 103;
+///     const POOL_STATE_MEMORY: u8 = 3;
+///
+///     const BLOCK_STATE_MEMORY: u8 = 4;
 /// }
 ///
 /// ```
@@ -566,14 +573,14 @@ pub trait Upgrade<P: Pools> {
     /// The previous pool state type before the upgrade.
     type PoolState: Into<P::PoolState> + for<'de> Deserialize<'de> + Clone;
 
-    /// The previous global state type before the upgrade.
-    type GlobalState: Into<P::GlobalState> + for<'de> Deserialize<'de> + Clone;
+    /// The previous block state type before the upgrade.
+    type BlockState: Into<P::BlockState> + for<'de> Deserialize<'de> + Clone;
 
-    /// The memory ID for the pool storage in the previous version.
-    const POOL_MEMORY: u8;
+    /// The memory ID for the pool state storage in the previous version.
+    const POOL_STATE_MEMORY: u8;
 
-    /// The memory ID for the global state storage in the previous version.
-    const GLOBAL_MEMORY: u8;
+    /// The memory ID for the block state storage in the previous version.
+    const BLOCK_STATE_MEMORY: u8;
 }
 
 #[doc(hidden)]

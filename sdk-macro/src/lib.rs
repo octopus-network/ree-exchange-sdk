@@ -41,20 +41,20 @@ impl syn::parse::Parse for StorageDeclAttr {
             let _ = inside.parse::<syn::Token![=]>()?;
             let lit: syn::LitInt = inside.parse()?;
             let memory_id = lit.base10_parse::<u8>()?;
-            if memory_id > 127 {
+            if memory_id >= 100 {
                 return Err(syn::Error::new_spanned(
                     lit,
-                    "Memory id must be between 0 and 127",
+                    "Memory id must be between 0 and 99",
                 ));
             }
             Ok(Self { memory_id })
         } else {
             let lit: syn::LitInt = inside.parse()?;
             let memory_id = lit.base10_parse::<u8>()?;
-            if memory_id > 127 {
+            if memory_id >= 100 {
                 return Err(syn::Error::new_spanned(
                     lit,
-                    "Memory id must be between 0 and 127",
+                    "Memory id must be between 0 and 99",
                 ));
             }
             Ok(Self { memory_id })
@@ -275,7 +275,7 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
         items.push(parse_quote! {
             impl ::ree_exchange_sdk::PoolStorageAccess<#pools> for #pools {
-                fn global_state() -> ::std::option::Option<<#pools as ::ree_exchange_sdk::Pools>::GlobalState> {
+                fn block_state() -> ::std::option::Option<<#pools as ::ree_exchange_sdk::Pools>::BlockState> {
                     self::__GLOBAL_STATE.with_borrow(|p| p.last_key_value().map(|(k, v)| v.inner))
                 }
 
@@ -297,7 +297,7 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
                 fn iter() -> ::ree_exchange_sdk::iter::PoolIterator<#pools> {
                     let memory = __MEMORY_MANAGER.with(|m| m.borrow().get(::ic_stable_structures::memory_manager::MemoryId::new(
-                        <#pools as ::ree_exchange_sdk::Pools>::POOL_MEMORY
+                        <#pools as ::ree_exchange_sdk::Pools>::POOL_STATE_MEMORY
                     )));
                     ::ree_exchange_sdk::iterator::<#pools>(memory)
                 }
@@ -395,21 +395,31 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 args: ::ree_exchange_sdk::types::exchange_interfaces::NewBlockArgs,
             ) -> ::ree_exchange_sdk::types::exchange_interfaces::NewBlockResponse {
                 ::ree_exchange_sdk::ensure_access::<#pools>()?;
-                self::__TX_RECORDS.with_borrow_mut(|transactions| {
-                    self::__CURRENT_POOLS.with_borrow_mut(|pools| {
-                        self::__BLOCKS.with_borrow_mut(|blocks| {
-                            self::__GLOBAL_STATE.with_borrow_mut(|global_state| {
-                                ::ree_exchange_sdk::states::new_block::<#pools>(
-                                    blocks,
-                                    transactions,
-                                    pools,
-                                    global_state,
-                                    args
-                                )
-                            })
-                        })
+                let block = self::__TX_RECORDS.with_borrow_mut(|unconfirmed| {
+                    self::__BLOCKS.with_borrow_mut(|blocks| {
+                        ::ree_exchange_sdk::states::confirm_txs::<#pools>(
+                            blocks,
+                            unconfirmed,
+                            args,
+                        )
                     })
-                })
+                })?;
+                self::__CURRENT_POOLS.with_borrow_mut(|pools| {
+                    self::__BLOCKS.with_borrow_mut(|blocks| {
+                        ::ree_exchange_sdk::states::accept_block::<#pools>(
+                            blocks,
+                            pools,
+                            block.clone(),
+                        )
+                    })
+                })?;
+                self::__GLOBAL_STATE.with_borrow_mut(|global| {
+                    ::ree_exchange_sdk::states::apply_on_hook::<#pools>(
+                        global,
+                        block,
+                    )
+                });
+                Ok(())
             }
         });
 
@@ -452,8 +462,10 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         <::ic_stable_structures::DefaultMemoryImpl as core::default::Default>::default()
                     )
                 );
+
                 static __GUARDS: ::core::cell::RefCell<::std::collections::HashSet<::std::string::String>> =
                     ::core::cell::RefCell::new(::std::collections::HashSet::new());
+
                 static __BLOCKS: ::core::cell::RefCell<
                     ::ic_stable_structures::StableBTreeMap<
                         u32,
@@ -463,7 +475,7 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 > = ::core::cell::RefCell::new(
                     ::ic_stable_structures::StableBTreeMap::init(
                         __MEMORY_MANAGER.with(|m| m.borrow().get(::ic_stable_structures::memory_manager::MemoryId::new(
-                            <#pools as ::ree_exchange_sdk::Pools>::BLOCK_MEMORY
+                            100
                         ))),
                     )
                 );
@@ -476,7 +488,7 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 > = ::core::cell::RefCell::new(
                     ::ic_stable_structures::StableBTreeMap::init(
                         __MEMORY_MANAGER.with(|m| m.borrow().get(::ic_stable_structures::memory_manager::MemoryId::new(
-                            <#pools as ::ree_exchange_sdk::Pools>::TRANSACTION_MEMORY
+                            101
                         ))),
                     )
                 );
@@ -491,20 +503,20 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 > = ::core::cell::RefCell::new(
                     ::ic_stable_structures::StableBTreeMap::init(
                         __MEMORY_MANAGER.with(|m| m.borrow().get(::ic_stable_structures::memory_manager::MemoryId::new(
-                            <#pools as ::ree_exchange_sdk::Pools>::POOL_MEMORY
+                            <#pools as ::ree_exchange_sdk::Pools>::POOL_STATE_MEMORY
                         ))),
                     )
                 );
                 static __GLOBAL_STATE: ::core::cell::RefCell<
                     ::ic_stable_structures::StableBTreeMap<
                         u32,
-                        ::ree_exchange_sdk::GlobalStateWrapper<<#pools as ::ree_exchange_sdk::Pools>::GlobalState>,
+                        ::ree_exchange_sdk::GlobalStateWrapper<<#pools as ::ree_exchange_sdk::Pools>::BlockState>,
                         ::ic_stable_structures::memory_manager::VirtualMemory<::ic_stable_structures::DefaultMemoryImpl>
                     >
                 > = ::core::cell::RefCell::new(
                     ::ic_stable_structures::StableBTreeMap::init(
                         __MEMORY_MANAGER.with(|m| m.borrow().get(::ic_stable_structures::memory_manager::MemoryId::new(
-                            <#pools as ::ree_exchange_sdk::Pools>::GLOBAL_MEMORY
+                            <#pools as ::ree_exchange_sdk::Pools>::BLOCK_STATE_MEMORY
                         ))),
                     )
                 );
@@ -516,7 +528,7 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
             items.push(parse_quote! {
                 impl #pools {
                     pub fn upgrade() {
-                        let id = <#pools as ::ree_exchange_sdk::Upgrade<#pools>>::POOL_MEMORY;
+                        let id = <#pools as ::ree_exchange_sdk::Upgrade<#pools>>::POOL_STATE_MEMORY;
                         let memory_id = ::ic_stable_structures::memory_manager::MemoryId::new(id);
                         let memory = __MEMORY_MANAGER.with(|m| m.borrow().get(memory_id));
                         let mut storage = ::ic_stable_structures::StableBTreeMap::<
@@ -591,16 +603,10 @@ pub fn storage(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
-/// Optional global block state storage for the exchange.
-#[proc_macro_attribute]
-pub fn global(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    item
-}
-
-/// Optional hook for `Pools`. It should be marked on the `Hook` impl block of the `Global` struct.
+/// Optional hook for `Pools`. It should be marked on the `Hook` impl block of the `Pools` struct.
 /// ```rust
 /// #[hook]
-/// impl Hook for BlockState {
+/// impl Hook for MyPools {
 /// ...
 /// }
 ///
@@ -611,75 +617,6 @@ pub fn hook(_attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 /// Upgrade attribute for pool state migration.
-///
-/// Assume `MyPools` originally has a state type `MyState`.
-///
-/// ```rust
-/// #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
-/// pub struct MyState {
-///     pub txid: Txid,
-///     pub nonce: u64,
-///     pub coin_reserved: Vec<CoinBalance>,
-///     pub btc_reserved: u64,
-///     pub utxos: Vec<Utxo>,
-///     pub attributes: String,
-/// }
-///
-/// impl Pools for MyPools {
-///     type State = MyState;
-///
-///     const POOL_MEMORY: u8 = 102;
-/// }
-/// ```
-/// Now we would like to update the `MyState` type.
-///
-/// The best practice is to rename the `MyState` to `OldState` and define a new state type `MyState`
-///
-/// ```rust
-/// #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
-/// pub struct OldState {
-///     pub txid: Txid,
-///     pub nonce: u64,
-///     pub coin_reserved: Vec<CoinBalance>,
-///     pub btc_reserved: u64,
-///     pub utxos: Vec<Utxo>,
-///     pub attributes: String,
-/// }
-///
-/// #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
-/// pub struct MyState {
-///     pub txid: Txid,
-///     pub nonce: u64,
-///     pub coin_reserved: Vec<CoinBalance>,
-///     pub btc_reserved: u64,
-///     pub utxos: Vec<Utxo>,
-///     pub attributes: String,
-///     pub new_field: u32,
-/// }
-///
-/// impl Into<MyState> for OldState {
-///     fn into(self) -> MyState {
-///         // ...
-///     }
-/// }
-///
-/// #[upgrade]
-/// impl Upgrade<MyPools> for MyPools {
-///     type PoolState = OldState;
-///
-///     // there is where we store the pool data before upgrade
-///     const POOL_MEMORY: u8 = 102;
-/// }
-///
-/// impl Pools for MyPools {
-///     type PoolState = MyState;
-///
-///     // this is where we store the pool data after upgrade
-///     const POOL_MEMORY: u8 = 103;
-/// }
-///
-/// ```
-/// Now you can call `MyPools::upgrade()` in the `post_upgrade` hook.
 #[proc_macro_attribute]
 pub fn upgrade(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item

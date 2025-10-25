@@ -30,7 +30,7 @@ impl std::error::Error for Error {}
 fn detect_reorg(
     blocks: &BlockStorage,
     finalize_threshold: u32,
-    new_block: NewBlockInfo,
+    new_block: &NewBlockInfo,
 ) -> Result<(), Error> {
     ic_cdk::println!(
         "Processing new block - height: {}, hash: {}, timestamp: {}, confirmed_txs: {}",
@@ -78,7 +78,7 @@ fn detect_reorg(
                     ic_cdk::println!("New block is a duplicate block");
                     return Err(Error::DuplicateBlock {
                         height: new_block.block_height,
-                        hash: new_block.block_hash,
+                        hash: new_block.block_hash.clone(),
                     });
                 }
                 return Err(Error::Recoverable {
@@ -118,18 +118,16 @@ fn handle_reorg(
     Ok(())
 }
 
-pub fn new_block<P>(
+pub fn confirm_txs<P>(
     blocks: &mut BlockStorage,
     unconfirmed: &mut UnconfirmedTxStorage,
-    pools: &mut PoolStorage<P::PoolState>,
-    global_state: &mut BlockStateStorage<P::GlobalState>,
     args: NewBlockArgs,
-) -> NewBlockResponse
+) -> Result<Block, String>
 where
-    P: Hook,
+    P: Pools,
 {
     // Check for blockchain reorganizations
-    match detect_reorg(blocks, P::finalize_threshold(), args.clone()) {
+    match detect_reorg(blocks, P::finalize_threshold(), &args) {
         Ok(_) => {}
         Err(Error::DuplicateBlock { height, hash }) => {
             ic_cdk::println!(
@@ -159,19 +157,24 @@ where
             confirmed.push(record);
         }
     }
-    let block = Block {
+    Ok(Block {
         block_height,
         block_hash,
         block_timestamp,
         txs: confirmed,
-    };
-    let mut recent = global_state.last_key_value().map(|(_, v)| v.inner);
-    P::on_block_confirmed(&mut recent, block.clone());
-    if let Some(r) = recent {
-        global_state.insert(block_height, GlobalStateWrapper::new(r));
-    }
+    })
+}
 
-    blocks.insert(block_height, block);
+pub fn accept_block<P>(
+    blocks: &mut BlockStorage,
+    pools: &mut PoolStorage<P::PoolState>,
+    block: Block,
+) -> NewBlockResponse
+where
+    P: Pools,
+{
+    let block_height = block.block_height;
+    blocks.insert(block.block_height, block);
 
     // Calculate the height below which blocks are considered fully confirmed (beyond reorg risk)
     let confirmed_height = block_height - P::finalize_threshold() + 1;
@@ -185,34 +188,36 @@ where
                 ic_cdk::println!("finalize txid: {} with pools: {:?}", tx.txid, tx.pools);
                 // Make transaction state permanent in each affected pool
                 for addr in tx.pools.iter() {
-                    let mut pool = pools.get(&addr).ok_or(format!(
-                        "Pool {} not found but marked an associated transaction {}",
-                        addr, tx.txid
-                    ))?;
-                    pool.finalize(tx.txid)?;
-                    // override the pool
-                    pools.insert(addr.clone(), pool);
-                    // P::on_tx_finalized(addr, *txid, finalized_block.clone());
+                    if let Some(mut pool) = pools.get(&addr) {
+                        pool.finalize(tx.txid)?;
+                        // override the pool
+                        pools.insert(addr.clone(), pool);
+                    }
                 }
             }
         }
     }
-
     // Clean up old block data that's no longer needed
-    let mut heights_to_remove: Vec<u32> = blocks
-        .iter()
-        .map(|entry| entry.into_pair())
-        .take_while(|(height, _)| *height <= confirmed_height)
-        .map(|(height, _)| height)
-        .collect();
-    heights_to_remove.sort();
-    for height in heights_to_remove {
-        ic_cdk::println!("removing block: {}", height);
-        if let Some(_block) = blocks.remove(&height) {
-            // P::on_block_finalized(&mut recent, block);
-        }
+    let removing = blocks
+        .keys()
+        .take_while(|h| *h <= confirmed_height)
+        .collect::<Vec<_>>();
+    for height in removing.iter() {
+        blocks.remove(&height);
     }
     Ok(())
+}
+
+pub fn apply_on_hook<P>(global_state: &mut BlockStateStorage<P::BlockState>, block: Block)
+where
+    P: Hook,
+{
+    let mut recent = global_state.last_key_value().map(|(_, v)| v.inner);
+    let block_height = block.block_height;
+    P::on_block_confirmed(&mut recent, block);
+    if let Some(r) = recent {
+        global_state.insert(block_height, GlobalStateWrapper::new(r));
+    }
 }
 
 pub fn rollback_tx<P>(
