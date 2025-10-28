@@ -102,7 +102,7 @@ fn handle_reorg(
         if let Some(reverted) = blocks.remove(&h) {
             for tx in reverted.txs.into_iter() {
                 ic_cdk::println!(
-                    "rollback finalized txid: {} with pools: {:?}",
+                    "rollback confirmed txid: {} with pools: {:?}",
                     tx.txid,
                     tx.pools
                 );
@@ -122,7 +122,7 @@ pub fn confirm_txs<P>(
     blocks: &mut BlockStorage,
     unconfirmed: &mut UnconfirmedTxStorage,
     args: NewBlockArgs,
-) -> Result<Block, String>
+) -> Result<Option<Block>, String>
 where
     P: Pools,
 {
@@ -130,11 +130,8 @@ where
     match detect_reorg(blocks, P::finalize_threshold(), &args) {
         Ok(_) => {}
         Err(Error::DuplicateBlock { height, hash }) => {
-            ic_cdk::println!(
-                "Duplicate block detected at height {} with hash {}",
-                height,
-                hash
-            );
+            ic_cdk::println!("Ignored duplicated block {}({}).", height, hash);
+            return Ok(None);
         }
         Err(Error::Unrecoverable) => {
             return Err("Unrecoverable reorg detected".to_string());
@@ -157,12 +154,12 @@ where
             confirmed.push(record);
         }
     }
-    Ok(Block {
+    Ok(Some(Block {
         block_height,
         block_hash,
         block_timestamp,
         txs: confirmed,
-    })
+    }))
 }
 
 pub fn accept_block<P>(

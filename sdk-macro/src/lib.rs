@@ -336,12 +336,15 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         self::__CURRENT_POOLS.with_borrow_mut(|pools| {
                             pools.insert(pool_address.clone(), pool);
                         });
-                        self::__TX_RECORDS.with_borrow_mut(|m| {
-                            let mut record = m.get(&txid).unwrap_or_default();
+                        self::__TX_RECORDS.with_borrow_mut(|unconfirmed| {
+                            let mut record = unconfirmed.get(&txid).unwrap_or(::ree_exchange_sdk::types::TxRecord {
+                                txid: txid.clone(),
+                                pools: vec![pool_address.clone()],
+                            });
                             if !record.pools.contains(&pool_address) {
                                 record.pools.push(pool_address.clone());
                             }
-                            m.insert(txid, record);
+                            unconfirmed.insert(txid, record);
                         });
                         ::core::result::Result::<String, String>::Ok(psbt.serialize_hex())
                     }
@@ -404,21 +407,23 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         )
                     })
                 })?;
-                self::__CURRENT_POOLS.with_borrow_mut(|pools| {
-                    self::__BLOCKS.with_borrow_mut(|blocks| {
-                        ::ree_exchange_sdk::states::accept_block::<#pools>(
-                            blocks,
-                            pools,
-                            block.clone(),
+                if let Some(block) = block {
+                    self::__CURRENT_POOLS.with_borrow_mut(|pools| {
+                        self::__BLOCKS.with_borrow_mut(|blocks| {
+                            ::ree_exchange_sdk::states::accept_block::<#pools>(
+                                blocks,
+                                pools,
+                                block.clone(),
+                            )
+                        })
+                    })?;
+                    self::__GLOBAL_STATE.with_borrow_mut(|global| {
+                        ::ree_exchange_sdk::states::apply_on_hook::<#pools>(
+                            global,
+                            block,
                         )
-                    })
-                })?;
-                self::__GLOBAL_STATE.with_borrow_mut(|global| {
-                    ::ree_exchange_sdk::states::apply_on_hook::<#pools>(
-                        global,
-                        block,
-                    )
-                });
+                    });
+                }
                 Ok(())
             }
         });
