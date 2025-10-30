@@ -432,13 +432,15 @@ pub trait Pools {
 /// It must be implemented over the `BlockState` type and marked as `#[ree_exchange_sdk::hook]`.
 pub trait Hook: Pools {
     /// This function is called when a block is received.
-    fn on_block_confirmed(_global: &mut Option<Self::BlockState>, _block: Block) {}
+    fn on_block_confirmed(_block: Block) {}
 }
 
 /// A trait for accessing the pool storage.
 /// The user-defined `Pools` type will automatically implement this trait.
 pub trait PoolStorageAccess<P: Pools> {
     fn block_state() -> Option<P::BlockState>;
+
+    fn commit(height: u32, block_state: P::BlockState) -> Result<(), String>;
 
     fn get(address: &String) -> Option<Pool<P::PoolState>>;
 

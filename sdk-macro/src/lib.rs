@@ -279,6 +279,17 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     self::__GLOBAL_STATE.with_borrow(|p| p.last_key_value().map(|(k, v)| v.inner))
                 }
 
+                fn commit(height: u32, block_state: <#pools as ::ree_exchange_sdk::Pools>::BlockState) -> ::std::result::Result<(), ::std::string::String> {
+                    self::__GLOBAL_STATE.with_borrow_mut(|p| {
+                        if p.contains_key(&height) {
+                            ::std::result::Result::Err(format!("Block state for height {} already exists", height))
+                        } else {
+                            p.insert(height, ::ree_exchange_sdk::GlobalStateWrapper { inner: block_state });
+                            ::std::result::Result::Ok(())
+                        }
+                    })
+                }
+
                 fn get(address: &::std::string::String) -> ::std::option::Option<::ree_exchange_sdk::Pool<<#pools as ::ree_exchange_sdk::Pools>::PoolState>> {
                     self::__CURRENT_POOLS.with_borrow(|p| p.get(address))
                 }
@@ -386,7 +397,7 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 ::ree_exchange_sdk::ensure_access::<#pools>()?;
                 self::__TX_RECORDS.with_borrow_mut(|transactions| {
                     self::__CURRENT_POOLS.with_borrow_mut(|pools| {
-                        ::ree_exchange_sdk::states::rollback_tx::<#pools>(transactions, pools, args)
+                        ::ree_exchange_sdk::states::reject_tx::<#pools>(transactions, pools, args.txid)
                     })
                 })
             }
@@ -399,12 +410,15 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
             ) -> ::ree_exchange_sdk::types::exchange_interfaces::NewBlockResponse {
                 ::ree_exchange_sdk::ensure_access::<#pools>()?;
                 let block = self::__TX_RECORDS.with_borrow_mut(|unconfirmed| {
-                    self::__BLOCKS.with_borrow_mut(|blocks| {
-                        ::ree_exchange_sdk::states::confirm_txs::<#pools>(
-                            blocks,
-                            unconfirmed,
-                            args,
-                        )
+                    self::__CURRENT_POOLS.with_borrow_mut(|pools| {
+                        self::__BLOCKS.with_borrow_mut(|blocks| {
+                            ::ree_exchange_sdk::states::confirm_txs::<#pools>(
+                                pools,
+                                blocks,
+                                unconfirmed,
+                                args,
+                            )
+                        })
                     })
                 })?;
                 if let Some(block) = block {
@@ -417,12 +431,7 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                             )
                         })
                     })?;
-                    self::__GLOBAL_STATE.with_borrow_mut(|global| {
-                        ::ree_exchange_sdk::states::apply_on_hook::<#pools>(
-                            global,
-                            block,
-                        )
-                    });
+                    <#pools as ::ree_exchange_sdk::Hook>::on_block_confirmed(block);
                 }
                 Ok(())
             }
