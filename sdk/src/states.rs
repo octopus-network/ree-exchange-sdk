@@ -3,7 +3,7 @@ use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug)]
 pub(crate) enum Error {
-    Recoverable { height: u32, depth: u32 },
+    Recoverable { from: u32, to: u32 },
     DuplicateBlock { height: u32, hash: String },
     Unrecoverable,
 }
@@ -11,8 +11,8 @@ pub(crate) enum Error {
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
-            Self::Recoverable { height, depth } => {
-                write!(f, "{depth} block deep reorg detected at height {height}")
+            Self::Recoverable { from, to } => {
+                write!(f, "reorg blocks from {from} to {to}")
             }
             Self::DuplicateBlock { height, hash } => {
                 write!(
@@ -60,11 +60,6 @@ fn detect_reorg(
                 return Err(Error::Unrecoverable);
             } else {
                 let reorg_depth = current_block.block_height - new_block.block_height + 1;
-                ic_cdk::println!("Detected reorg - depth: {}", reorg_depth,);
-                if reorg_depth > finalize_threshold {
-                    ic_cdk::println!("Reorg depth is greater than the max recoverable reorg depth");
-                    return Err(Error::Unrecoverable);
-                }
                 let target_block = blocks
                     .get(&new_block.block_height)
                     .ok_or(Error::Unrecoverable)
@@ -81,9 +76,18 @@ fn detect_reorg(
                         hash: new_block.block_hash.clone(),
                     });
                 }
+                ic_cdk::println!(
+                    "Reorg detected from {} to {}",
+                    new_block.block_height,
+                    current_block.block_height
+                );
+                if reorg_depth > finalize_threshold {
+                    ic_cdk::println!("Reorg depth is greater than the max recoverable reorg depth");
+                    return Err(Error::Unrecoverable);
+                }
                 return Err(Error::Recoverable {
-                    height: current_block.block_height,
-                    depth: reorg_depth,
+                    from: new_block.block_height,
+                    to: current_block.block_height,
                 });
             }
         }
@@ -92,21 +96,25 @@ fn detect_reorg(
 
 fn handle_reorg<P>(
     pools: &mut PoolStorage<P::PoolState>,
+    block_states: &mut BlockStateStorage<P::BlockState>,
     blocks: &mut BlockStorage,
     unconfirmed: &mut UnconfirmedTxStorage,
-    height: u32,
-    depth: u32,
+    from: u32,
+    to: u32,
 ) -> Result<(), Error>
 where
     P: Pools,
 {
-    ic_cdk::println!("rolling back state after reorg of depth {depth} at height {height}");
-    for h in (height - depth + 1..=height).rev() {
-        ic_cdk::println!("rolling back change record at height {h}");
+    // remove block state
+    (from..=to).for_each(|h| {
+        block_states.remove(&h);
+    });
+    // Rollback confirmed transactions
+    (from..=to).rev().for_each(|h| {
         if let Some(reverted) = blocks.remove(&h) {
             for tx in reverted.txs.into_iter() {
                 ic_cdk::println!(
-                    "rollback confirmed txid: {} with pools: {:?}",
+                    "Rollback confirmed txid: {} with pools: {:?}",
                     tx.txid,
                     tx.pools
                 );
@@ -118,16 +126,14 @@ where
                 unconfirmed.insert(tx.txid, tx);
             }
         }
-    }
-    ic_cdk::println!(
-        "successfully rolled back state to height {}",
-        height - depth,
-    );
+    });
+    ic_cdk::println!("successfully rolled back state to {}", to,);
     Ok(())
 }
 
 pub fn confirm_txs<P>(
     pools: &mut PoolStorage<P::PoolState>,
+    block_states: &mut BlockStateStorage<P::BlockState>,
     blocks: &mut BlockStorage,
     unconfirmed: &mut UnconfirmedTxStorage,
     args: NewBlockArgs,
@@ -145,8 +151,8 @@ where
         Err(Error::Unrecoverable) => {
             return Err("Unrecoverable reorg detected".to_string());
         }
-        Err(Error::Recoverable { height, depth }) => {
-            handle_reorg::<P>(pools, blocks, unconfirmed, height, depth)
+        Err(Error::Recoverable { from, to }) => {
+            handle_reorg::<P>(pools, block_states, blocks, unconfirmed, from, to)
                 .map_err(|e| format!("{:?}", e))?;
         }
     }

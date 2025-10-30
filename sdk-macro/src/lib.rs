@@ -412,12 +412,15 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 let block = self::__TX_RECORDS.with_borrow_mut(|unconfirmed| {
                     self::__CURRENT_POOLS.with_borrow_mut(|pools| {
                         self::__BLOCKS.with_borrow_mut(|blocks| {
-                            ::ree_exchange_sdk::states::confirm_txs::<#pools>(
-                                pools,
-                                blocks,
-                                unconfirmed,
-                                args,
-                            )
+                            self::__GLOBAL_STATE.with_borrow_mut(|state| {
+                                ::ree_exchange_sdk::states::confirm_txs::<#pools>(
+                                    pools,
+                                    state,
+                                    blocks,
+                                    unconfirmed,
+                                    args,
+                                )
+                            })
                         })
                     })
                 })?;
