@@ -612,7 +612,7 @@ pub fn pools(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 /// Storage definition
 /// ```rust
-/// #[storage(memory = 1)]
+/// #[storage(memory = 3)]
 /// pub type MyStorage = ree_exchange_sdk::store::StableBTreeMap<String, String>;
 /// ```
 #[proc_macro_attribute]
@@ -624,9 +624,13 @@ pub fn storage(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// ```rust
 /// #[hook]
 /// impl Hook for MyPools {
-/// ...
+///     fn on_block_confirmed(block: Block) {
+///         // read pools
+///         let _ = MyPools::iter();
+///         // update block state
+///         MyPools::commit(block.block_height, block.block_height);
+///     }
 /// }
-///
 /// ```
 #[proc_macro_attribute]
 pub fn hook(_attr: TokenStream, item: TokenStream) -> TokenStream {

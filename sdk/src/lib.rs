@@ -91,8 +91,6 @@
 //! ic_cdk::export_candid!();
 //!```
 
-// #[doc(hidden)]
-// pub mod reorg;
 #[doc(hidden)]
 pub mod schnorr;
 #[doc(hidden)]
@@ -153,7 +151,9 @@ pub fn ensure_access<P: Pools>() -> Result<(), String> {
 /// The parameters for the hook `on_block_confirmed` and `on_block_finalized`
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Block {
+    /// The height of the block just received
     pub block_height: u32,
+    /// The block hash
     pub block_hash: String,
     /// The block timestamp in seconds since the Unix epoch.
     pub block_timestamp: u64,
@@ -409,7 +409,7 @@ pub trait Pools {
     /// The concrete type of the pool state.
     type PoolState: StateView + Serialize + for<'de> Deserialize<'de>;
 
-    /// The concret type of the global state.
+    /// The concret type of the block state.
     type BlockState: Serialize + for<'de> Deserialize<'de>;
 
     /// The memory ID for the block state storage.
