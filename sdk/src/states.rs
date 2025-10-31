@@ -95,7 +95,6 @@ fn detect_reorg(
 }
 
 fn handle_reorg<P>(
-    pools: &mut PoolStorage<P::PoolState>,
     block_states: &mut BlockStateStorage<P::BlockState>,
     blocks: &mut BlockStorage,
     unconfirmed: &mut UnconfirmedTxStorage,
@@ -118,10 +117,6 @@ where
                     tx.txid,
                     tx.pools
                 );
-                // Revert transaction state in each affected pool
-                if let Err(e) = rollback_tx::<P>(pools, tx.clone()) {
-                    ic_cdk::println!("Failed to rollback tx {} during reorg: {}", tx.txid, e);
-                }
                 // The transaction is now unconfirmed again
                 unconfirmed.insert(tx.txid, tx);
             }
@@ -132,14 +127,13 @@ where
 }
 
 pub fn confirm_txs<P>(
-    pools: &mut PoolStorage<P::PoolState>,
     block_states: &mut BlockStateStorage<P::BlockState>,
     blocks: &mut BlockStorage,
     unconfirmed: &mut UnconfirmedTxStorage,
     args: NewBlockArgs,
 ) -> Result<Option<Block>, String>
 where
-    P: Pools,
+    P: Hook,
 {
     // Check for blockchain reorganizations
     match detect_reorg(blocks, P::finalize_threshold(), &args) {
@@ -152,7 +146,7 @@ where
             return Err("Unrecoverable reorg detected".to_string());
         }
         Err(Error::Recoverable { from, to }) => {
-            handle_reorg::<P>(pools, block_states, blocks, unconfirmed, from, to)
+            handle_reorg::<P>(block_states, blocks, unconfirmed, from, to)
                 .map_err(|e| format!("{:?}", e))?;
         }
     }
@@ -170,12 +164,18 @@ where
             confirmed.push(record);
         }
     }
-    Ok(Some(Block {
+    let block = Block {
         block_height,
         block_hash,
         block_timestamp,
         txs: confirmed,
-    }))
+    };
+    for tx in block.txs.iter() {
+        for addr in tx.pools.iter() {
+            P::on_tx_confirmed(addr.to_string(), tx.txid, block.clone());
+        }
+    }
+    Ok(Some(block))
 }
 
 pub fn accept_block<P>(
@@ -224,25 +224,29 @@ where
 pub fn reject_tx<P>(
     unconfirmed: &mut UnconfirmedTxStorage,
     pools: &mut PoolStorage<P::PoolState>,
-    txid: Txid,
+    args: RollbackTxArgs,
 ) -> RollbackTxResponse
 where
-    P: Pools,
+    P: Hook,
 {
-    if let Some(tx) = unconfirmed.remove(&txid) {
+    if let Some(tx) = unconfirmed.remove(&args.txid) {
         ic_cdk::println!(
             "rollback unconfirmed tx {} with pools: {:?}",
             tx.txid,
             tx.pools
         );
-        return rollback_tx::<P>(pools, tx);
+        return rollback_tx::<P>(pools, tx, args.reason_code);
     }
     Ok(())
 }
 
-fn rollback_tx<P>(pools: &mut PoolStorage<P::PoolState>, tx: TxRecord) -> RollbackTxResponse
+fn rollback_tx<P>(
+    pools: &mut PoolStorage<P::PoolState>,
+    tx: TxRecord,
+    reason: String,
+) -> RollbackTxResponse
 where
-    P: Pools,
+    P: Hook,
 {
     // Roll back each affected pool to its state before this transaction
     for addr in tx.pools.iter() {
@@ -250,9 +254,11 @@ where
             "Pool {} not found but marked an associated transaction {}",
             addr, tx.txid
         ))?;
-        pool.rollback(tx.txid)
+        let reverted = pool
+            .rollback(tx.txid)
             .map_err(|e| format!("Failed to rollback pool {}: {}", addr, e))?;
         pools.insert(addr.clone(), pool);
+        P::on_tx_rollbacked(addr.to_string(), tx.txid, reason.clone(), reverted);
     }
     Ok(())
 }

@@ -287,7 +287,10 @@ where
     }
 }
 
-impl<S> Pool<S> {
+impl<S> Pool<S>
+where
+    S: StateView,
+{
     /// Creates a new pool with the given metadata.
     pub fn new(metadata: Metadata) -> Self {
         Self {
@@ -309,6 +312,13 @@ impl<S> Pool<S> {
     /// Returns the states of the pool.
     pub fn states(&self) -> &Vec<S> {
         &self.states
+    }
+
+    /// Return the state matches the given txid.
+    pub fn get(&self, txid: Txid) -> Option<&S> {
+        self.states
+            .iter()
+            .find(|state| state.inspect_state().txid == txid)
     }
 
     /// Returns a mutable reference to the states of the pool.
@@ -431,6 +441,18 @@ pub trait Pools {
 /// A hook that can be implemented to respond to block event in the exchange lifecycle.
 /// It must be implemented over the `BlockState` type and marked as `#[ree_exchange_sdk::hook]`.
 pub trait Hook: Pools {
+    /// This function is called when a transaction is rejected and never confirmed.
+    fn on_tx_rollbacked(
+        _address: String,
+        _txid: Txid,
+        _reason: String,
+        _rollbacked_states: Vec<Self::PoolState>,
+    ) {
+    }
+
+    /// This function is called when a transaction is placed in a new block, before the `on_block_confirmed`.
+    fn on_tx_confirmed(_address: String, _txid: Txid, _block: Block) {}
+
     /// This function is called when a block is received.
     fn on_block_confirmed(_block: Block) {}
 }

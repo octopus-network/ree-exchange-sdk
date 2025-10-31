@@ -397,7 +397,7 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 ::ree_exchange_sdk::ensure_access::<#pools>()?;
                 self::__TX_RECORDS.with_borrow_mut(|transactions| {
                     self::__CURRENT_POOLS.with_borrow_mut(|pools| {
-                        ::ree_exchange_sdk::states::reject_tx::<#pools>(transactions, pools, args.txid)
+                        ::ree_exchange_sdk::states::reject_tx::<#pools>(transactions, pools, args)
                     })
                 })
             }
@@ -410,17 +410,14 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
             ) -> ::ree_exchange_sdk::types::exchange_interfaces::NewBlockResponse {
                 ::ree_exchange_sdk::ensure_access::<#pools>()?;
                 let block = self::__TX_RECORDS.with_borrow_mut(|unconfirmed| {
-                    self::__CURRENT_POOLS.with_borrow_mut(|pools| {
-                        self::__BLOCKS.with_borrow_mut(|blocks| {
-                            self::__GLOBAL_STATE.with_borrow_mut(|state| {
-                                ::ree_exchange_sdk::states::confirm_txs::<#pools>(
-                                    pools,
-                                    state,
-                                    blocks,
-                                    unconfirmed,
-                                    args,
-                                )
-                            })
+                    self::__BLOCKS.with_borrow_mut(|blocks| {
+                        self::__GLOBAL_STATE.with_borrow_mut(|state| {
+                            ::ree_exchange_sdk::states::confirm_txs::<#pools>(
+                                state,
+                                blocks,
+                                unconfirmed,
+                                args,
+                            )
                         })
                     })
                 })?;
@@ -625,8 +622,14 @@ pub fn storage(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// #[hook]
 /// impl Hook for MyPools {
 ///     fn on_block_confirmed(block: Block) {
-///         // read pools
-///         let _ = MyPools::iter();
+///         for tx in block.txs {
+///             // for each pool affected by this tx
+///             for addr in tx.pools {
+///                 let pool = DummyPools::get(&addr).unwrap();
+///                 // load the state and do something with it
+///                 let _state = pool.get(tx.txid).unwrap();
+///             }
+///         }
 ///         // update block state
 ///         MyPools::commit(block.block_height, block.block_height);
 ///     }
