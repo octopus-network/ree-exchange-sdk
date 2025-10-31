@@ -3,7 +3,7 @@ members = ["sdk", "sdk-macro", "types"]
 resolver = "2"
 
 [workspace.package]
-version = "0.10.1"
+version = "0.11.0"
 edition = "2024"
 license = "MIT"
 homepage = "https://www.omnity.network/"

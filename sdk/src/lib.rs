@@ -39,13 +39,13 @@
 //!     pub struct DummyPools;
 //!
 //!     impl Pools for DummyPools {
-//!         type State = DummyPoolState;
+//!         type PoolState = DummyPoolState;
 //!
-//!         const POOL_MEMORY: u8 = 102;
+//!         type BlockState = u32;
 //!
-//!         const BLOCK_MEMORY: u8 = 100;
+//!         const POOL_STATE_MEMORY: u8 = 1;
 //!
-//!         const TRANSACTION_MEMORY: u8 = 101;
+//!         const BLOCK_STATE_MEMORY: u8 = 2;
 //!
 //!         fn network() -> Network {
 //!             Network::Testnet4
@@ -92,9 +92,9 @@
 //!```
 
 #[doc(hidden)]
-pub mod reorg;
-#[doc(hidden)]
 pub mod schnorr;
+#[doc(hidden)]
+pub mod states;
 pub mod store;
 pub mod prelude {
     pub use crate::*;
@@ -114,11 +114,13 @@ use serde::{Deserialize, Serialize};
 pub use ree_types as types;
 
 #[doc(hidden)]
+pub type BlockStateStorage<S> = BTreeMap<u32, GlobalStateWrapper<S>, Memory>;
+#[doc(hidden)]
 pub type Memory = VirtualMemory<DefaultMemoryImpl>;
 #[doc(hidden)]
-pub type BlockStorage = BTreeMap<u32, NewBlockInfo, Memory>;
+pub type BlockStorage = BTreeMap<u32, Block, Memory>;
 #[doc(hidden)]
-pub type TransactionStorage = BTreeMap<(Txid, bool), TxRecord, Memory>;
+pub type UnconfirmedTxStorage = BTreeMap<Txid, TxRecord, Memory>;
 #[doc(hidden)]
 pub type PoolStorage<S> = BTreeMap<String, Pool<S>, Memory>;
 
@@ -146,12 +148,34 @@ pub fn ensure_access<P: Pools>() -> Result<(), String> {
     }
 }
 
-/// The parameters for the hook `on_state_confirmed` and `on_state_finalized`
+/// The parameters for the hook `on_block_confirmed` and `on_block_finalized`
 #[derive(CandidType, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Block {
-    pub height: u32,
-    pub hash: String,
-    pub timestamp: u64,
+    /// The height of the block just received
+    pub block_height: u32,
+    /// The block hash
+    pub block_hash: String,
+    /// The block timestamp in seconds since the Unix epoch.
+    pub block_timestamp: u64,
+    /// transactions confirmed in this block
+    pub txs: Vec<TxRecord>,
+}
+
+impl Storable for Block {
+    fn to_bytes(&self) -> std::borrow::Cow<'_, [u8]> {
+        let bytes = bincode::serialize(self).unwrap();
+        std::borrow::Cow::Owned(bytes)
+    }
+
+    fn into_bytes(self) -> Vec<u8> {
+        bincode::serialize(&self).unwrap()
+    }
+
+    fn from_bytes(bytes: std::borrow::Cow<'_, [u8]>) -> Self {
+        bincode::deserialize(bytes.as_ref()).unwrap()
+    }
+
+    const BOUND: Bound = Bound::Unbounded;
 }
 
 /// The metadata for the pool, which includes the key, name, and address.
@@ -383,16 +407,16 @@ where
 /// The Pools trait defines the interface for the exchange pools, must be marked as `#[ree_exchange_sdk::pools]`.
 pub trait Pools {
     /// The concrete type of the pool state.
-    type State: StateView + Serialize + for<'de> Deserialize<'de>;
+    type PoolState: StateView + Serialize + for<'de> Deserialize<'de>;
 
-    /// The memory ID for the pool storage.
-    const POOL_MEMORY: u8;
+    /// The concret type of the block state.
+    type BlockState: Serialize + for<'de> Deserialize<'de>;
 
-    /// The memory ID for the block storage.
-    const BLOCK_MEMORY: u8;
+    /// The memory ID for the block state storage.
+    const BLOCK_STATE_MEMORY: u8;
 
-    /// The memory ID for the transaction storage.
-    const TRANSACTION_MEMORY: u8;
+    /// The memory ID for the pool state storage.
+    const POOL_STATE_MEMORY: u8;
 
     /// useful for ensuring that the exchange is running on the correct network.
     fn network() -> Network;
@@ -404,74 +428,99 @@ pub trait Pools {
     }
 }
 
-/// A set of hooks that can be implemented to respond to various events in the exchange lifecycle.
-/// It must be implemented over the `Pools` type and marked as `#[ree_exchange_sdk::hook]`.
-/// NOTE: Any modification to the pool state within `Hook` would cause panic.
+/// A hook that can be implemented to respond to block event in the exchange lifecycle.
+/// It must be implemented over the `BlockState` type and marked as `#[ree_exchange_sdk::hook]`.
 pub trait Hook: Pools {
-    /// This function is called when a transaction is dropped from the mempool.
-    fn on_tx_rollbacked(
-        _address: String,
-        _txid: Txid,
-        _reason: String,
-        _rollbacked_states: Vec<Self::State>,
-    ) {
-    }
-
-    /// This function is called when a transaction is confirmed in a block.
-    fn on_tx_confirmed(_address: String, _txid: Txid, _block: Block) {}
-
-    /// This function is called when a transaction reaches the finalize threshold.
-    fn on_tx_finalized(_address: String, _txid: Txid, _block: Block) {}
-
-    /// This function is called when a block is considered finalized.
-    fn on_block_finalized(_block: NewBlockInfo) {}
-
     /// This function is called when a block is received.
-    fn on_new_block(_block: NewBlockInfo) {}
-
-    /// This function is called after a block is received.
-    fn after_new_block(_block: NewBlockInfo) {}
+    fn on_block_confirmed(_block: Block) {}
 }
 
 /// A trait for accessing the pool storage.
 /// The user-defined `Pools` type will automatically implement this trait.
 pub trait PoolStorageAccess<P: Pools> {
-    fn get(address: &String) -> Option<Pool<P::State>>;
+    fn block_state() -> Option<P::BlockState>;
 
-    fn insert(pool: Pool<P::State>);
+    fn commit(height: u32, block_state: P::BlockState) -> Result<(), String>;
 
-    fn remove(address: &String) -> Option<Pool<P::State>>;
+    fn get(address: &String) -> Option<Pool<P::PoolState>>;
+
+    fn insert(pool: Pool<P::PoolState>);
+
+    fn remove(address: &String) -> Option<Pool<P::PoolState>>;
 
     fn iter() -> iter::PoolIterator<P>;
 }
 
+#[doc(hidden)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct GlobalStateWrapper<S> {
+    pub inner: S,
+}
+
+#[doc(hidden)]
+impl<S> GlobalStateWrapper<S> {
+    pub fn new(s: S) -> Self {
+        Self { inner: s }
+    }
+}
+
+#[doc(hidden)]
+impl<S> Storable for GlobalStateWrapper<S>
+where
+    S: Serialize + for<'de> Deserialize<'de>,
+{
+    const BOUND: Bound = Bound::Unbounded;
+
+    fn to_bytes(&self) -> std::borrow::Cow<'_, [u8]> {
+        let bytes = bincode::serialize(self).unwrap();
+        std::borrow::Cow::Owned(bytes)
+    }
+
+    fn into_bytes(self) -> Vec<u8> {
+        bincode::serialize(&self).unwrap()
+    }
+
+    fn from_bytes(bytes: std::borrow::Cow<'_, [u8]>) -> Self {
+        bincode::deserialize(bytes.as_ref()).unwrap()
+    }
+}
+
 /// The Upgrade trait is used to handle state migrations when the state type of a Pools implementation changes.
-/// Assume `MyPools` originally has a state type `MyState`.
+/// Assume `MyPools` originally has a pool state type `MyPoolState` and block state type `MyBlockState`.
 ///
 /// ```rust
 /// #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
-/// pub struct MyState {
+/// pub struct MyPoolState {
 ///     pub txid: Txid,
 ///     pub nonce: u64,
 ///     pub coin_reserved: Vec<CoinBalance>,
 ///     pub btc_reserved: u64,
 ///     pub utxos: Vec<Utxo>,
 ///     pub attributes: String,
+/// }
+///
+/// #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
+/// pub struct MyBlockState {
+///     pub block_number: u32,
 /// }
 ///
 /// impl Pools for MyPools {
-///     type State = MyState;
+///     type PoolState = MyPoolState;
 ///
-///     const POOL_MEMORY: u8 = 102;
+///     type BlockState = MyBlockState;
+///
+///     const POOL_STATE_MEMORY: u8 = 1;
+///
+///     const BLOCK_STATE_MEMORY: u8 = 2;
 /// }
 /// ```
-/// Now we would like to update the `MyState` type.
+/// Now we would like to update the `MyPoolState` type.
 ///
-/// The best practice is to rename the `MyState` to `OldState` and define a new state type `MyState`
+/// The best practice is to rename the `MyPoolState` to `OldPoolState` and define a new state type `MyPoolState`
 ///
 /// ```rust
 /// #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
-/// pub struct OldState {
+/// pub struct OldPoolState {
 ///     pub txid: Txid,
 ///     pub nonce: u64,
 ///     pub coin_reserved: Vec<CoinBalance>,
@@ -481,7 +530,7 @@ pub trait PoolStorageAccess<P: Pools> {
 /// }
 ///
 /// #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
-/// pub struct MyState {
+/// pub struct MyPoolState {
 ///     pub txid: Txid,
 ///     pub nonce: u64,
 ///     pub coin_reserved: Vec<CoinBalance>,
@@ -499,27 +548,41 @@ pub trait PoolStorageAccess<P: Pools> {
 ///
 /// #[upgrade]
 /// impl Upgrade<MyPools> for MyPools {
-///     type State = OldState;
+///     type PoolState = OldState;
+///
+///     type BlockState = u32;
 ///
 ///     // there is where we store the pool data before upgrade
-///     const POOL_MEMORY: u8 = 102;
+///     const POOL_STATE_MEMORY: u8 = 1;
+///
+///     const BLOCK_STATE_MEMORY: u8 = 2;
 /// }
 ///
 /// impl Pools for MyPools {
-///     type State = MyState;
+///     type PoolState = MyPoolState;
+///
+///     type BlockState = u32;
 ///
 ///     // this is where we store the pool data after upgrade
-///     const POOL_MEMORY: u8 = 103;
+///     const POOL_STATE_MEMORY: u8 = 3;
+///
+///     const BLOCK_STATE_MEMORY: u8 = 4;
 /// }
 ///
 /// ```
 /// Now you can call `MyPools::upgrade()` in the `post_upgrade` hook.
 pub trait Upgrade<P: Pools> {
-    /// The previous state type before the upgrade.
-    type State: Into<P::State> + for<'de> Deserialize<'de> + Clone;
+    /// The previous pool state type before the upgrade.
+    type PoolState: Into<P::PoolState> + for<'de> Deserialize<'de> + Clone;
 
-    /// The memory ID for the pool storage in the previous version.
-    const POOL_MEMORY: u8;
+    /// The previous block state type before the upgrade.
+    type BlockState: Into<P::BlockState> + for<'de> Deserialize<'de> + Clone;
+
+    /// The memory ID for the pool state storage in the previous version.
+    const POOL_STATE_MEMORY: u8;
+
+    /// The memory ID for the block state storage in the previous version.
+    const BLOCK_STATE_MEMORY: u8;
 }
 
 #[doc(hidden)]
@@ -527,7 +590,7 @@ pub fn iterator<P>(memory: Memory) -> iter::PoolIterator<P>
 where
     P: Pools,
 {
-    let inner = PoolStorage::<P::State>::init(memory);
+    let inner = PoolStorage::<P::PoolState>::init(memory);
     let keys = inner.keys().collect::<Vec<_>>();
     iter::PoolIterator {
         inner,
@@ -539,7 +602,7 @@ where
 #[doc(hidden)]
 pub mod iter {
     pub struct PoolIterator<P: super::Pools> {
-        pub(crate) inner: super::PoolStorage<P::State>,
+        pub(crate) inner: super::PoolStorage<P::PoolState>,
         pub(crate) cursor: usize,
         pub(crate) keys: Vec<String>,
     }
@@ -548,7 +611,7 @@ pub mod iter {
     where
         P: super::Pools,
     {
-        type Item = (String, super::Pool<P::State>);
+        type Item = (String, super::Pool<P::PoolState>);
 
         fn next(&mut self) -> Option<Self::Item> {
             if self.cursor < self.keys.len() {

@@ -139,8 +139,11 @@ impl Default for Txid {
 }
 
 #[doc(hidden)]
-#[derive(Debug, Clone, Default, CandidType, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Default, CandidType, serde::Serialize, serde::Deserialize, Eq, PartialEq,
+)]
 pub struct TxRecord {
+    pub txid: Txid,
     pub pools: Vec<String>,
 }
 
