@@ -179,6 +179,7 @@ where
 }
 
 pub fn accept_block<P>(
+    block_states: &mut BlockStateStorage<P::BlockState>,
     blocks: &mut BlockStorage,
     pools: &mut PoolStorage<P::PoolState>,
     block: Block,
@@ -217,6 +218,11 @@ where
         .collect::<Vec<_>>();
     for height in removing.iter() {
         blocks.remove(&height);
+    }
+    for height in removing.iter() {
+        if block_states.len() > 1 {
+            block_states.remove(&height);
+        }
     }
     Ok(())
 }
