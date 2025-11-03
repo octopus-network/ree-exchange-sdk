@@ -424,11 +424,14 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 if let Some(block) = block {
                     self::__CURRENT_POOLS.with_borrow_mut(|pools| {
                         self::__BLOCKS.with_borrow_mut(|blocks| {
-                            ::ree_exchange_sdk::states::accept_block::<#pools>(
-                                blocks,
-                                pools,
-                                block.clone(),
-                            )
+                            self::__GLOBAL_STATE.with_borrow_mut(|state| {
+                                ::ree_exchange_sdk::states::accept_block::<#pools>(
+                                    state,
+                                    blocks,
+                                    pools,
+                                    block.clone(),
+                                )
+                            })
                         })
                     })?;
                     <#pools as ::ree_exchange_sdk::Hook>::on_block_confirmed(block);
