@@ -545,16 +545,23 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
             items.push(parse_quote! {
                 impl #pools {
                     pub fn upgrade() {
-                        let id = <#pools as ::ree_exchange_sdk::Upgrade<#pools>>::POOL_STATE_MEMORY;
-                        let memory_id = ::ic_stable_structures::memory_manager::MemoryId::new(id);
+                        let pool_id = <#pools as ::ree_exchange_sdk::Upgrade<#pools>>::POOL_STATE_MEMORY;
+                        if pool_id >= 100 {
+                            panic!("Memory id for pool state upgrade must be between 0 and 99");
+                        }
+                        let block_id = <#pools as ::ree_exchange_sdk::Upgrade<#pools>>::BLOCK_STATE_MEMORY;
+                        if block_id >= 100 {
+                            panic!("Memory id for block state upgrade must be between 0 and 99");
+                        }
+                        let memory_id = ::ic_stable_structures::memory_manager::MemoryId::new(pool_id);
                         let memory = __MEMORY_MANAGER.with(|m| m.borrow().get(memory_id));
-                        let mut storage = ::ic_stable_structures::StableBTreeMap::<
+                        let mut pool_storage = ::ic_stable_structures::StableBTreeMap::<
                             ::std::string::String,
                             ::ree_exchange_sdk::Pool<<#pools as ::ree_exchange_sdk::Upgrade<#pools>>::PoolState>,
                             ::ic_stable_structures::memory_manager::VirtualMemory<::ic_stable_structures::DefaultMemoryImpl>,
                         >::init(memory);
                         self::__CURRENT_POOLS.with_borrow_mut(|pools| {
-                            for entry in storage.iter() {
+                            for entry in pool_storage.iter() {
                                 let old_pool = entry.value();
                                 let states = old_pool.states()
                                     .iter()
@@ -568,7 +575,24 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                                 pools.insert(entry.key().clone(), new_pool);
                             }
                         });
-                        storage.clear_new();
+
+                        let memory_id = ::ic_stable_structures::memory_manager::MemoryId::new(block_id);
+                        let memory = __MEMORY_MANAGER.with(|m| m.borrow().get(memory_id));
+                        let mut block_storage = ::ic_stable_structures::StableBTreeMap::<
+                            u32,
+                            ::ree_exchange_sdk::GlobalStateWrapper<<#pools as ::ree_exchange_sdk::Upgrade<#pools>>::BlockState>,
+                            ::ic_stable_structures::memory_manager::VirtualMemory<::ic_stable_structures::DefaultMemoryImpl>,
+                        >::init(memory);
+                        self::__GLOBAL_STATE.with_borrow_mut(|blocks| {
+                            for entry in block_storage.iter() {
+                                let old_block = entry.value().inner;
+                                let height = *entry.key();
+                                let new_block = <<#pools as ::ree_exchange_sdk::Upgrade<#pools>>::BlockState as ::std::convert::Into<<#pools as ::ree_exchange_sdk::Pools>::BlockState>>::into(old_block);
+                                blocks.insert(height, ::ree_exchange_sdk::GlobalStateWrapper { inner: new_block });
+                            }
+                        });
+                        pool_storage.clear_new();
+                        block_storage.clear_new();
                     }
                 }
             });
