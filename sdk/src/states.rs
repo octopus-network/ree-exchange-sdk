@@ -135,6 +135,7 @@ pub fn confirm_txs<P>(
 where
     P: Hook,
 {
+    P::pre_block_confirmed(args.block_height);
     // Check for blockchain reorganizations
     match detect_reorg(blocks, P::finalize_threshold(), &args) {
         Ok(_) => {}

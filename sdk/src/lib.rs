@@ -455,6 +455,9 @@ pub trait Hook: Pools {
 
     /// This function is called when a block is received.
     fn on_block_confirmed(_block: Block) {}
+
+    /// This function is called when a block is received but before any other hooks.
+    fn pre_block_confirmed(_height: u32) {}
 }
 
 /// A trait for accessing the pool storage.
