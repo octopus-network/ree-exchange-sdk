@@ -135,6 +135,7 @@ pub fn confirm_txs<P>(
 where
     P: Hook,
 {
+    P::pre_block_confirmed(args.block_height);
     // Check for blockchain reorganizations
     match detect_reorg(blocks, P::finalize_threshold(), &args) {
         Ok(_) => {}
@@ -198,15 +199,24 @@ where
         let (height, block_info) = entry.into_pair();
         if height <= confirmed_height {
             ic_cdk::println!("finalizing txs in block: {}", height);
+            let mut affected_pools: std::collections::HashMap<_, Vec<_>> =
+                std::collections::HashMap::new();
             for tx in block_info.txs.iter() {
                 ic_cdk::println!("finalize txid: {} with pools: {:?}", tx.txid, tx.pools);
                 // Make transaction state permanent in each affected pool
-                for addr in tx.pools.iter() {
-                    if let Some(mut pool) = pools.get(&addr) {
-                        pool.finalize(tx.txid)?;
-                        // override the pool
-                        pools.insert(addr.clone(), pool);
+                for addr in tx.pools.clone().into_iter() {
+                    affected_pools
+                        .entry(addr)
+                        .and_modify(|txs| txs.push(tx.txid))
+                        .or_insert_with(|| vec![tx.txid]);
+                }
+            }
+            for (addr, txids) in affected_pools.into_iter() {
+                if let Some(mut pool) = pools.get(&addr) {
+                    for txid in txids {
+                        pool.finalize(txid)?;
                     }
+                    pools.insert(addr.clone(), pool);
                 }
             }
         }
