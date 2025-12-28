@@ -5,7 +5,7 @@
 //! use self::exchange::*;
 //! use candid::CandidType;
 //! use ic_cdk::{query, update};
-//! use ree_exchange_sdk::{prelude::*, types::*};
+//! use ree_exchange_sdk::{prelude::*, types::*, error::*};
 //! use serde::{Deserialize, Serialize};
 //!
 //! #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
@@ -65,7 +65,7 @@
 //!         args: ActionArgs,
 //!     ) -> ActionResult<DummyPoolState> {
 //!         let pool = DummyPools::get(&args.intention.pool_address)
-//!             .ok_or_else(|| format!("Pool not found: {}", args.intention.pool_address))?;
+//!             .ok_or(Error::PoolNotFound)?;
 //!         let mut state = pool.last_state().cloned().unwrap_or_default();
 //!         // do some checks...
 //!         state.nonce = state.nonce + 1;
@@ -112,6 +112,39 @@ use serde::{Deserialize, Serialize};
 
 /// essential types of REE
 pub use ree_types as types;
+
+pub mod error {
+    pub const POOL_NOT_FOUND: u16 = 101;
+    pub const NONCE_EXPIRED: u16 = 102;
+    pub const UNKNOWN_ACTION: u16 = 103;
+    pub const ILLEGAL_PSBT: u16 = 104;
+    pub const POOL_BEING_EXECUTED: u16 = 105;
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub enum Error {
+        PoolNotFound,
+        NonceExpired,
+        UnknownAction,
+        IllegalPsbt,
+        PoolBeingExecuted,
+        Custom(u16, String),
+    }
+
+    impl std::fmt::Display for Error {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            match self {
+                Error::PoolNotFound => write!(f, "{}:Pool not found", POOL_NOT_FOUND),
+                Error::NonceExpired => write!(f, "{}:Nonce expired", NONCE_EXPIRED),
+                Error::UnknownAction => write!(f, "{}:Unknown action", UNKNOWN_ACTION),
+                Error::IllegalPsbt => write!(f, "{}:Illegal PSBT", ILLEGAL_PSBT),
+                Error::PoolBeingExecuted => {
+                    write!(f, "{}:Pool is being executed", POOL_BEING_EXECUTED)
+                }
+                Error::Custom(code, msg) => write!(f, "{}:{}", code % 100 + 200, msg),
+            }
+        }
+    }
+}
 
 #[doc(hidden)]
 pub type BlockStateStorage<S> = BTreeMap<u32, GlobalStateWrapper<S>, Memory>;
@@ -252,7 +285,7 @@ impl From<ExecuteTxArgs> for ActionArgs {
 }
 
 /// The result type for actions in the exchange, which can either be successful with a state or an error message.
-pub type ActionResult<S> = Result<S, String>;
+pub type ActionResult<S> = Result<S, error::Error>;
 
 /// User must implement the `StateView` trait for customized state to provide this information.
 pub trait StateView {

@@ -323,20 +323,26 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 let args = <::ree_exchange_sdk::ActionArgs as ::std::convert::From<_>>::from(args);
                 let pool_address = args.intention.pool_address.clone();
                 let _guard = self::__ExecuteTxGuard::new(pool_address.clone())
-                    .ok_or(format!("Pool {} is being executed", pool_address))?;
+                    .ok_or(::ree_exchange_sdk::error::Error::PoolBeingExecuted.to_string())?;
                 let txid = args.txid.clone();
                 let inputs = args.intention.pool_outpoints()
-                    .map_err(|e| format!("Failed to deserialize input outpoints: {}", e))?;
+                    .map_err(|_| ::ree_exchange_sdk::error::Error::IllegalPsbt.to_string())?;
                 let action = args.intention.action.clone();
+                let pool_info = self::__CURRENT_POOLS.with_borrow(|pools| {
+                    pools.get(&pool_address).map(|p| p.get_pool_info())
+                }).ok_or(::ree_exchange_sdk::error::Error::PoolNotFound.to_string())?;
+                if pool_info.nonce != args.intention.nonce {
+                    return ::core::result::Result::<String, String>::Err(::ree_exchange_sdk::error::Error::NonceExpired.to_string());
+                }
                 let result: ::ree_exchange_sdk::ActionResult::<<#pools as ::ree_exchange_sdk::Pools>::PoolState> = match action.as_str() {
                     #(#branch)*
-                    _ => ::ree_exchange_sdk::ActionResult::<<#pools as ::ree_exchange_sdk::Pools>::PoolState>::Err(format!("Unknown action: {}", action)),
+                    _ => ::ree_exchange_sdk::ActionResult::<<#pools as ::ree_exchange_sdk::Pools>::PoolState>::Err(::ree_exchange_sdk::error::Error::UnknownAction),
                 };
                 match result {
                     ::ree_exchange_sdk::ActionResult::<<#pools as ::ree_exchange_sdk::Pools>::PoolState>::Ok(r) => {
                         let mut pool = self::__CURRENT_POOLS.with_borrow(|pools| {
                             pools.get(&pool_address).clone()
-                        }).ok_or(format!("Pool {} not found", pool_address))?;
+                        }).ok_or(::ree_exchange_sdk::error::Error::PoolNotFound.to_string())?;
                         ::ree_exchange_sdk::schnorr::sign_p2tr_inputs(
                             &mut psbt,
                             &inputs,
@@ -360,7 +366,7 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                         ::core::result::Result::<String, String>::Ok(psbt.serialize_hex())
                     }
                     ::ree_exchange_sdk::ActionResult::<<#pools as ::ree_exchange_sdk::Pools>::PoolState>::Err(e) => {
-                        ::core::result::Result::<String, String>::Err(e)
+                        ::core::result::Result::<String, String>::Err(e.to_string())
                     }
                 }
             }
