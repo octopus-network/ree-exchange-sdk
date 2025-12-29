@@ -331,7 +331,7 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 let pool_info = self::__CURRENT_POOLS.with_borrow(|pools| {
                     pools.get(&pool_address).map(|p| p.get_pool_info())
                 }).ok_or(::ree_exchange_sdk::error::Error::PoolNotFound.to_string())?;
-                if pool_info.nonce != args.intention.nonce {
+                if pool_info.nonce + 1 != args.intention.nonce {
                     return ::core::result::Result::<String, String>::Err(::ree_exchange_sdk::error::Error::NonceExpired.to_string());
                 }
                 let result: ::ree_exchange_sdk::ActionResult::<<#pools as ::ree_exchange_sdk::Pools>::PoolState> = match action.as_str() {
