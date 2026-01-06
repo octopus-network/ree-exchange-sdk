@@ -15,6 +15,7 @@ pub struct InvokeArgs {
     pub psbt_hex: String,
     pub intention_set: IntentionSet,
     pub initiator_utxo_proof: Vec<u8>,
+    pub client_info: Option<String>,
 }
 
 /// If successful, returns the txid of the transaction broadcasted,
