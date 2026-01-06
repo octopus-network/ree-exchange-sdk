@@ -29,6 +29,10 @@
 //!             attributes: "{}".to_string(),
 //!         }
 //!     }
+//!
+//!     fn set_nonce(&mut nonce) {
+//!         self.nonce = nonce;
+//!     }
 //! }
 //!
 //! #[exchange]
@@ -119,6 +123,8 @@ pub mod error {
     pub const UNKNOWN_ACTION: u16 = 103;
     pub const ILLEGAL_PSBT: u16 = 104;
     pub const POOL_BEING_EXECUTED: u16 = 105;
+    pub const TXID_NOT_FOUND: u16 = 106;
+    pub const NONCE_NOT_FOUND: u16 = 107;
 
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub enum Error {
@@ -127,6 +133,8 @@ pub mod error {
         UnknownAction,
         IllegalPsbt,
         PoolBeingExecuted,
+        TxidNotFound,
+        NonceNotFound,
         Custom(u16, String),
     }
 
@@ -137,6 +145,8 @@ pub mod error {
                 Error::NonceExpired => write!(f, "{}:Nonce expired", NONCE_EXPIRED),
                 Error::UnknownAction => write!(f, "{}:Unknown action", UNKNOWN_ACTION),
                 Error::IllegalPsbt => write!(f, "{}:Illegal PSBT", ILLEGAL_PSBT),
+                Error::TxidNotFound => write!(f, "{}:Txid not found", TXID_NOT_FOUND),
+                Error::NonceNotFound => write!(f, "{}:Nonce not found", NONCE_NOT_FOUND),
                 Error::PoolBeingExecuted => {
                     write!(f, "{}:Pool is being executed", POOL_BEING_EXECUTED)
                 }
@@ -257,6 +267,7 @@ pub struct ActionArgs {
     pub intention: Intention,
     pub other_intentions: Vec<Intention>,
     pub unconfirmed_tx_count: usize,
+    pub is_reapply: bool,
 }
 
 impl From<ExecuteTxArgs> for ActionArgs {
@@ -267,6 +278,7 @@ impl From<ExecuteTxArgs> for ActionArgs {
             intention_set,
             intention_index,
             zero_confirmed_tx_queue_length,
+            is_reapply,
         } = args;
         let IntentionSet {
             mut intentions,
@@ -280,6 +292,7 @@ impl From<ExecuteTxArgs> for ActionArgs {
             intention,
             other_intentions: intentions,
             unconfirmed_tx_count: zero_confirmed_tx_queue_length as usize,
+            is_reapply: is_reapply.unwrap_or(false),
         }
     }
 }
@@ -290,6 +303,8 @@ pub type ActionResult<S> = Result<S, error::Error>;
 /// User must implement the `StateView` trait for customized state to provide this information.
 pub trait StateView {
     fn inspect_state(&self) -> StateInfo;
+
+    fn set_nonce(&mut self, nonce: u64);
 }
 
 /// The concrete type stored in the IC stable memory.
@@ -366,6 +381,8 @@ pub trait ReePool<S> {
 
     fn get_pool_basic(&self) -> PoolBasic;
 
+    fn truncate(&mut self, nonce: u64) -> Result<(), String>;
+
     fn rollback(&mut self, txid: Txid) -> Result<Vec<S>, String>;
 
     fn finalize(&mut self, txid: Txid) -> Result<(), String>;
@@ -415,6 +432,17 @@ where
             utxos,
             attributes,
         }
+    }
+
+    fn truncate(&mut self, nonce: u64) -> Result<(), String> {
+        while let Some(state) = self.states.last() {
+            if state.inspect_state().nonce >= nonce {
+                self.states.pop();
+            } else {
+                break;
+            }
+        }
+        Ok(())
     }
 
     fn rollback(&mut self, txid: Txid) -> Result<Vec<S>, String> {
@@ -709,6 +737,10 @@ pub mod test {
                 utxos: self.utxos.clone(),
                 attributes: self.attributes.clone(),
             }
+        }
+
+        fn set_nonce(&mut self, nonce: u64) {
+            self.nonce = nonce;
         }
     }
 
