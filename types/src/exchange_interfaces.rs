@@ -39,6 +39,7 @@ pub struct ExecuteTxArgs {
     pub intention_set: IntentionSet,
     pub intention_index: u32,
     pub zero_confirmed_tx_queue_length: u32,
+    pub is_reapply: Option<bool>,
 }
 
 impl ExecuteTxArgs {
