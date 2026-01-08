@@ -332,6 +332,9 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 let new_nonce = args.intention.nonce;
                 if args.is_reapply {
                     pool.truncate(new_nonce)?;
+                    self::__CURRENT_POOLS.with_borrow_mut(|pools| {
+                        pools.insert(pool_address.clone(), pool.clone());
+                    });
                 }
                 let pool_info = pool.get_pool_info();
                 if pool_info.nonce + 1 != new_nonce {
