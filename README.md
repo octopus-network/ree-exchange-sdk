@@ -27,7 +27,7 @@ Add the dependency in your `Cargo.toml`:
 
 ```toml
 [dependencies]
-ree-exchange-sdk = "0.11"
+ree-exchange-sdk = "0.13"
 ```
 
 
