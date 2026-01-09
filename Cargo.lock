@@ -556,7 +556,7 @@ dependencies = [
 
 [[package]]
 name = "ree-exchange-sdk"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "bincode",
  "candid",
@@ -570,7 +570,7 @@ dependencies = [
 
 [[package]]
 name = "ree-exchange-sdk-macro"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -579,7 +579,7 @@ dependencies = [
 
 [[package]]
 name = "ree-types"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "anyhow",
  "bincode",
