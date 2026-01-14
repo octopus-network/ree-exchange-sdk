@@ -172,6 +172,7 @@ pub type PoolStorage<S> = BTreeMap<String, Pool<S>, Memory>;
 pub enum Network {
     Bitcoin,
     Testnet4,
+    Devnet,
 }
 
 impl Into<crate::types::bitcoin::Network> for Network {
@@ -179,6 +180,7 @@ impl Into<crate::types::bitcoin::Network> for Network {
         match self {
             Network::Bitcoin => crate::types::bitcoin::Network::Bitcoin,
             Network::Testnet4 => crate::types::bitcoin::Network::Testnet4,
+            Network::Devnet => crate::types::bitcoin::Network::Testnet4,
         }
     }
 }
@@ -188,6 +190,7 @@ pub fn ensure_access<P: Pools>() -> Result<(), String> {
     match P::network() {
         Network::Bitcoin => crate::types::orchestrator_interfaces::ensure_orchestrator(),
         Network::Testnet4 => crate::types::orchestrator_interfaces::ensure_testnet4_orchestrator(),
+        Network::Devnet => Ok(()),
     }
 }
 

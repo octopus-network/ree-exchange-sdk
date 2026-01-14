@@ -55,6 +55,7 @@ async fn sign_with_schnorr(
     let key_name = match network {
         Network::Bitcoin => "key_1",
         Network::Testnet4 => "test_key_1",
+        Network::Devnet => "test_key_1",
     };
     let merkle_root_hash = merkle_root
         .map(|bytes| {
@@ -138,6 +139,7 @@ pub async fn request_p2tr_address(
     let key_name = match network {
         Network::Bitcoin => "key_1",
         Network::Testnet4 => "test_key_1",
+        Network::Devnet => "test_key_1",
     };
     let arg = SchnorrPublicKeyArgs {
         canister_id: None,
