@@ -282,6 +282,7 @@ impl From<ExecuteTxArgs> for ActionArgs {
             intention_index,
             zero_confirmed_tx_queue_length,
             is_reapply,
+            invoke_caller_principal: _,
         } = args;
         let IntentionSet {
             mut intentions,

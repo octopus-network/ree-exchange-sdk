@@ -1,6 +1,6 @@
 use crate::{CoinBalance, IntentionSet, Pubkey, Txid, Utxo};
 use alloc::borrow::Cow;
-use candid::CandidType;
+use candid::{CandidType, Principal};
 use ic_stable_structures::{Storable, storable::Bound};
 use serde::{Deserialize, Serialize};
 
@@ -40,6 +40,7 @@ pub struct ExecuteTxArgs {
     pub intention_index: u32,
     pub zero_confirmed_tx_queue_length: u32,
     pub is_reapply: Option<bool>,
+    pub invoke_caller_principal: Option<Principal>,
 }
 
 impl ExecuteTxArgs {
