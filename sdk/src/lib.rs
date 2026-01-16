@@ -108,7 +108,7 @@ pub mod prelude {
 use crate::types::{
     CoinBalance, Intention, IntentionSet, Pubkey, TxRecord, Txid, Utxo, exchange_interfaces::*,
 };
-use candid::CandidType;
+use candid::{CandidType, Principal};
 use ic_stable_structures::{
     BTreeMap, DefaultMemoryImpl, Storable, memory_manager::VirtualMemory, storable::Bound,
 };
@@ -125,6 +125,7 @@ pub mod error {
     pub const POOL_BEING_EXECUTED: u16 = 105;
     pub const TXID_NOT_FOUND: u16 = 106;
     pub const NONCE_NOT_FOUND: u16 = 107;
+    pub const MISSING_CALLER: u16 = 108;
 
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub enum Error {
@@ -135,6 +136,7 @@ pub mod error {
         PoolBeingExecuted,
         TxidNotFound,
         NonceNotFound,
+        MissingCallerPrincipal,
         Custom(u16, String),
     }
 
@@ -149,6 +151,9 @@ pub mod error {
                 Error::NonceNotFound => write!(f, "{}:Nonce not found", NONCE_NOT_FOUND),
                 Error::PoolBeingExecuted => {
                     write!(f, "{}:Pool is being executed", POOL_BEING_EXECUTED)
+                }
+                Error::MissingCallerPrincipal => {
+                    write!(f, "{}:Missing caller principal", MISSING_CALLER)
                 }
                 Error::Custom(code, msg) => write!(f, "{}:{}", code % 100 + 200, msg),
             }
@@ -271,10 +276,13 @@ pub struct ActionArgs {
     pub other_intentions: Vec<Intention>,
     pub unconfirmed_tx_count: usize,
     pub is_reapply: bool,
+    pub invoke_caller_principal: Principal,
 }
 
-impl From<ExecuteTxArgs> for ActionArgs {
-    fn from(args: ExecuteTxArgs) -> Self {
+impl TryFrom<ExecuteTxArgs> for ActionArgs {
+    type Error = error::Error;
+
+    fn try_from(args: ExecuteTxArgs) -> Result<Self, Self::Error> {
         let ExecuteTxArgs {
             psbt_hex: _,
             txid,
@@ -282,7 +290,7 @@ impl From<ExecuteTxArgs> for ActionArgs {
             intention_index,
             zero_confirmed_tx_queue_length,
             is_reapply,
-            invoke_caller_principal: _,
+            invoke_caller_principal,
         } = args;
         let IntentionSet {
             mut intentions,
@@ -290,14 +298,16 @@ impl From<ExecuteTxArgs> for ActionArgs {
             tx_fee_in_sats: _,
         } = intention_set;
         let intention = intentions.swap_remove(intention_index as usize);
-        Self {
+        Ok(Self {
             txid,
             initiator_address,
             intention,
             other_intentions: intentions,
             unconfirmed_tx_count: zero_confirmed_tx_queue_length as usize,
             is_reapply: is_reapply.unwrap_or(false),
-        }
+            invoke_caller_principal: invoke_caller_principal
+                .ok_or(error::Error::MissingCallerPrincipal)?,
+        })
     }
 }
 
