@@ -320,7 +320,7 @@ pub fn exchange(_attr: TokenStream, item: TokenStream) -> TokenStream {
             pub async fn execute_tx(args: ::ree_exchange_sdk::types::exchange_interfaces::ExecuteTxArgs) -> ::core::result::Result<String, String> {
                 ::ree_exchange_sdk::ensure_access::<#pools>()?;
                 let mut psbt = args.psbt()?;
-                let args = <::ree_exchange_sdk::ActionArgs as ::std::convert::From<_>>::from(args);
+                let args = <::ree_exchange_sdk::ActionArgs as ::std::convert::TryFrom<_>>::try_from(args).map_err(|e| e.to_string())?;
                 let pool_address = args.intention.pool_address.clone();
                 let _guard = self::__ExecuteTxGuard::new(pool_address.clone())
                     .ok_or(::ree_exchange_sdk::error::Error::PoolBeingExecuted.to_string())?;
